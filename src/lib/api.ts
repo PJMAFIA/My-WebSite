@@ -1,8 +1,15 @@
 import axios from 'axios';
 import { useAuthStore } from '@/store';
 
+// ✅ AUTOMATIC URL SWITCHING
+// If the app is built for production (Vercel), use Render.
+// If running locally (npm run dev), use Localhost.
+const BASE_URL = import.meta.env.PROD 
+  ? 'https://websitebackend-ekfo.onrender.com/api'  // ☁️ Your Live Backend
+  : 'http://localhost:5000/api';                    // 🏠 Your Local Backend
+
 const api = axios.create({
-  baseURL: 'http://localhost:5000/api', // Ensure this matches your backend port
+  baseURL: BASE_URL,
   // ❌ REMOVED: headers: { 'Content-Type': 'application/json' } 
   // Let axios set this automatically based on data type (JSON vs FormData)
 });
