@@ -98,7 +98,7 @@ export function MainLayout({ children }: LayoutProps) {
                 <span className="text-primary-foreground font-bold">S</span>
               </div>
               <div>
-                <span className="font-bold text-lg">SaaSify</span>
+                <span className="font-bold text-lg">Universal Store</span>
                 {isAdmin && <span className="block text-xs text-primary">Admin Panel</span>}
               </div>
             </Link>
@@ -182,7 +182,7 @@ export function AuthLayout({ children }: LayoutProps) {
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center glow">
               <span className="text-primary-foreground font-bold text-xl">S</span>
             </div>
-            <span className="font-bold text-2xl">SaaSify</span>
+            <span className="font-bold text-2xl">Universal Store</span>
           </Link>
           <h1 className="text-4xl xl:text-5xl font-bold mb-6 leading-tight">Premium Software <br /><span className="text-gradient">Licensing Platform</span></h1>
           <p className="text-lg text-muted-foreground mb-8 max-w-md">Access enterprise-grade software with secure licensing, instant delivery, and 24/7 support.</p>
