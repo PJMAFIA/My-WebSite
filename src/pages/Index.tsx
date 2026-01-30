@@ -32,7 +32,7 @@ const testimonials = [
   {
     name: 'Alex Chen',
     role: 'CTO at TechCorp',
-    content: 'SaaSify transformed how we manage our software licenses. The platform is incredibly intuitive.',
+    content: 'Universal Store transformed how we manage our software licenses. The platform is incredibly intuitive.',
     rating: 5,
   },
   {
@@ -66,7 +66,7 @@ export default function Index() {
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center glow">
               <span className="text-primary-foreground font-bold">S</span>
             </div>
-            <span className="font-bold text-xl">SaaSify</span>
+            <span className="font-bold text-xl">Universal Store</span>
           </Link>
 
           <nav className="hidden md:flex items-center gap-8">
@@ -288,7 +288,7 @@ export default function Index() {
               Loved by <span className="text-gradient">developers</span>
             </h2>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              Join thousands of satisfied customers who trust SaaSify.
+              Join thousands of satisfied customers who trust Universal Store.
             </p>
           </motion.div>
 
@@ -344,7 +344,7 @@ export default function Index() {
                   Ready to get started?
                 </h2>
                 <p className="text-muted-foreground text-lg mb-8 max-w-xl mx-auto">
-                  Join thousands of developers and businesses who trust SaaSify for their software licensing needs.
+                  Join thousands of developers and businesses who trust Universal Store for their software licensing needs.
                 </p>
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                   <Button asChild variant="gradient" size="xl">
@@ -371,10 +371,10 @@ export default function Index() {
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
                 <span className="text-primary-foreground font-bold text-sm">S</span>
               </div>
-              <span className="font-bold">SaaSify</span>
+              <span className="font-bold">Universal Store</span>
             </div>
             <p className="text-muted-foreground text-sm">
-              © 2024 SaaSify. All rights reserved.
+              © 2024 Universal Store. All rights reserved.
             </p>
             <div className="flex items-center gap-6 text-sm text-muted-foreground">
               <Link to="/terms" className="hover:text-foreground transition-colors">Terms</Link>
