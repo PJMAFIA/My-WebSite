@@ -4,7 +4,7 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 
 export default defineConfig(({ mode }) => ({
-  base: "/", // 👈 VERY IMPORTANT
+  base: process.env.VITE_BASE_PATH || "/My-WebSite", // 👈 VERY IMPORTANT
 
   server: {
     host: "::",
