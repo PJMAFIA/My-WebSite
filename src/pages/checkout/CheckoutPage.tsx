@@ -9,7 +9,8 @@ import {
   Copy,
   Wallet,
   QrCode,
-  Loader2
+  Loader2,
+  Zap
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -17,11 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-  useCartStore, 
-  useAuthStore, 
-  formatPlan 
-} from '@/store';
+import { useCartStore, useAuthStore, formatPlan } from '@/store';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/api'; 
 
@@ -88,7 +85,11 @@ const paymentDetails: Record<PaymentMethod, { title: string; details: React.Reac
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const { selectedProduct, selectedPlan, clearCart } = useCartStore();
-  const { user, isAuthenticated } = useAuthStore();
+  
+  // ✅ FIX 1: Extract 'token' to ensure we don't lose it during update
+  // Cast to 'any' to avoid TS errors if your interface doesn't explicitly expose token
+  const { user, isAuthenticated, login, token } = useAuthStore() as any;
+  
   const { toast } = useToast();
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('upi');
@@ -108,14 +109,13 @@ export default function CheckoutPage() {
 
   if (!selectedProduct || !selectedPlan || !user) return null;
 
-  // Ensure type safety for price lookup
   const price = selectedProduct.prices[selectedPlan as keyof typeof selectedProduct.prices];
+  
+  const canPayWithWallet = user.balance >= price;
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setScreenshot(file);
-    }
+    if (file) setScreenshot(file);
   };
 
   const handleCopy = (text: string) => {
@@ -123,63 +123,94 @@ export default function CheckoutPage() {
     toast({ title: 'Copied', description: 'Copied to clipboard' });
   };
 
-  const handleSubmit = async () => {
-    // 1. Validation
-    if (!transactionId.trim()) {
-      toast({
-        title: 'Missing Information',
-        description: 'Please enter your Transaction ID.',
-        variant: 'destructive',
+  // 🔵 PAY WITH WALLET
+  const handleWalletPurchase = async () => {
+    setIsSubmitting(true);
+    try {
+      // 1. Call API
+      const response = await api.post('/orders/wallet', {
+        productId: selectedProduct.id,
+        plan: selectedPlan,
+        price: price
       });
+
+      // 2. Calculate new balance
+      const newBalance = Number((user.balance - price).toFixed(2));
+      
+      // ✅ FIX 2: PRESERVE THE TOKEN (Crucial Step)
+      // Check store first, then local storage fallback
+      const currentToken = token || localStorage.getItem('auth_token') || localStorage.getItem('token') || '';
+
+      if (currentToken) {
+        login({ ...user, balance: newBalance }, currentToken);
+      } else {
+        console.warn("⚠️ Token not found during balance update. Session might be unstable.");
+      }
+
+      // 3. Success
+      clearCart();
+      toast({
+        title: 'Purchase Successful! 🎉',
+        description: 'License key has been added to your dashboard.',
+      });
+      navigate('/dashboard');
+
+    } catch (error: any) {
+      console.error("Wallet Purchase Error:", error);
+      
+      if (error.response?.status === 401) {
+        toast({ title: 'Session Expired', description: 'Please login again.', variant: 'destructive' });
+        navigate('/login');
+      } else {
+        toast({
+          title: 'Purchase Failed',
+          description: error.response?.data?.message || 'Out of Stock or Server Error',
+          variant: 'destructive',
+        });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // 🟠 MANUAL PAYMENT
+  const handleSubmitManual = async () => {
+    if (!transactionId.trim()) {
+      toast({ title: 'Missing Info', description: 'Enter Transaction ID.', variant: 'destructive' });
       return;
     }
-
     if (!screenshot) {
-      toast({
-        title: 'Missing Proof',
-        description: 'Please upload a payment screenshot.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Missing Proof', description: 'Upload screenshot.', variant: 'destructive' });
       return;
     }
 
     setIsSubmitting(true);
-
     try {
-      // 2. Prepare FormData
       const formData = new FormData();
-      // Ensure these keys match Backend Controller EXACTLY
       formData.append('productId', selectedProduct.id);
       formData.append('plan', selectedPlan);
       formData.append('price', price.toString());
       formData.append('paymentMethod', paymentMethod);
       formData.append('transactionId', transactionId);
-      
-      // ✅ Crucial: Matches 'upload.single("paymentScreenshot")' in backend route
       formData.append('paymentScreenshot', screenshot); 
 
-      // 3. Send Request
-      // Note: We do NOT set 'Content-Type' header manually. 
-      // Axios detects FormData and sets 'multipart/form-data' with the correct boundary automatically.
       await api.post('/orders', formData);
 
-      // 4. Cleanup & Redirect
       clearCart();
-      if (fileInputRef.current) fileInputRef.current.value = ''; // Reset file input
+      if (fileInputRef.current) fileInputRef.current.value = '';
       setScreenshot(null);
       setTransactionId('');
       
       toast({
         title: 'Order Placed!',
-        description: 'Your order is pending approval. Check your dashboard.',
+        description: 'Waiting for Admin approval.',
       });
       navigate('/dashboard');
 
     } catch (error: any) {
-      console.error("Order Submit Error:", error);
       toast({
         title: 'Order Failed',
-        description: error.response?.data?.message || 'Something went wrong.',
+        description: error.response?.data?.message || 'Error',
         variant: 'destructive',
       });
     } finally {
@@ -190,22 +221,13 @@ export default function CheckoutPage() {
   return (
     <MainLayout>
       <div className="max-w-4xl mx-auto">
-        <Button
-          variant="ghost"
-          className="mb-6"
-          onClick={() => navigate('/shop')}
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Shop
+        <Button variant="ghost" className="mb-6" onClick={() => navigate('/shop')}>
+          <ArrowLeft className="h-4 w-4 mr-2" /> Back to Shop
         </Button>
 
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Order Summary */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="lg:col-span-1"
-          >
+          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="lg:col-span-1">
             <Card variant="glass" className="sticky top-24">
               <CardHeader>
                 <CardTitle>Order Summary</CardTitle>
@@ -213,22 +235,17 @@ export default function CheckoutPage() {
               <CardContent className="space-y-4">
                 <div className="flex items-center gap-4">
                   <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center overflow-hidden">
-                    {selectedProduct.image && selectedProduct.image !== '/placeholder.svg' ? (
+                    {selectedProduct.image ? (
                         <img src={selectedProduct.image} alt={selectedProduct.name} className="w-full h-full object-cover" />
                     ) : (
-                        <span className="text-2xl font-bold text-primary">
-                        {selectedProduct.name.charAt(0)}
-                        </span>
+                        <span className="text-2xl font-bold text-primary">{selectedProduct.name.charAt(0)}</span>
                     )}
                   </div>
                   <div>
                     <h3 className="font-semibold">{selectedProduct.name}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {formatPlan(selectedPlan)} Plan
-                    </p>
+                    <p className="text-sm text-muted-foreground">{formatPlan(selectedPlan)} Plan</p>
                   </div>
                 </div>
-
                 <div className="border-t border-border pt-4 space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Subtotal</span>
@@ -243,112 +260,116 @@ export default function CheckoutPage() {
             </Card>
           </motion.div>
 
-          {/* Payment Form */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="lg:col-span-2"
-          >
-            <Card variant="glass">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5 text-primary" />
-                  Payment Details
-                </CardTitle>
-                <CardDescription>
-                  Select method, pay, and upload proof.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                
-                {/* Method Selector */}
-                <div className="space-y-2">
-                  <Label>Payment Method</Label>
-                  <Select
-                    value={paymentMethod}
-                    onValueChange={(value: PaymentMethod) => setPaymentMethod(value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select payment method" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="upi">UPI / PhonePe</SelectItem>
-                      <SelectItem value="crypto">Crypto (USDT)</SelectItem>
-                      <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                      <SelectItem value="paypal">PayPal</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Details Box */}
-                <div className="p-6 bg-secondary/30 rounded-xl relative group">
-                  <div className="absolute top-4 right-4 cursor-pointer opacity-50 hover:opacity-100" onClick={() => handleCopy("payment-info")}>
-                    <Copy className="h-4 w-4" />
+          {/* DYNAMIC PAYMENT SECTION */}
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="lg:col-span-2">
+            
+            {/* 🟢 SCENARIO A: Wallet Has Money (Instant Buy) */}
+            {canPayWithWallet ? (
+              <Card variant="glass" className="border-primary/50 shadow-[0_0_30px_-5px_rgba(var(--primary),0.3)]">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Zap className="h-6 w-6 text-yellow-400 fill-yellow-400" />
+                    Instant Checkout
+                  </CardTitle>
+                  <CardDescription>
+                    Pay securely using your wallet balance. No waiting time.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="p-6 bg-primary/10 rounded-xl border border-primary/20 flex flex-col items-center justify-center text-center">
+                    <p className="text-sm text-muted-foreground mb-2">Available Balance</p>
+                    <p className="text-4xl font-bold text-primary mb-4">${user.balance.toFixed(2)}</p>
+                    <div className="h-px w-full bg-border mb-4" />
+                    <p className="text-sm text-muted-foreground">
+                      After purchase: <span className="text-foreground font-medium">${(user.balance - price).toFixed(2)}</span>
+                    </p>
                   </div>
-                  <h4 className="font-medium mb-4">{paymentDetails[paymentMethod].title}</h4>
-                  {paymentDetails[paymentMethod].details}
-                </div>
 
-                {/* Inputs */}
-                <div className="space-y-4">
+                  <Button
+                    variant="gradient"
+                    size="lg"
+                    className="w-full text-lg h-14"
+                    onClick={handleWalletPurchase}
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? (
+                      <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Processing...</>
+                    ) : `Pay $${price.toFixed(2)} & Get Key Now`}
+                  </Button>
+                  <p className="text-xs text-center text-muted-foreground">
+                    Instant Delivery • Secure Payment
+                  </p>
+                </CardContent>
+              </Card>
+
+            ) : (
+            
+            /* 🔴 SCENARIO B: Insufficient Balance (Manual Upload) */
+              <Card variant="glass">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <CreditCard className="h-5 w-5 text-primary" />
+                    Add Funds / Pay Manually
+                  </CardTitle>
+                  <CardDescription>
+                    Your wallet balance ($ {user.balance.toFixed(2)}) is insufficient. Please pay directly.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Method Selector */}
+                  <div className="space-y-2">
+                    <Label>Payment Method</Label>
+                    <Select value={paymentMethod} onValueChange={(value: PaymentMethod) => setPaymentMethod(value)}>
+                      <SelectTrigger><SelectValue placeholder="Select payment method" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="upi">UPI / PhonePe</SelectItem>
+                        <SelectItem value="crypto">Crypto (USDT)</SelectItem>
+                        <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                        <SelectItem value="paypal">PayPal</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Details Box */}
+                  <div className="p-6 bg-secondary/30 rounded-xl relative group">
+                    <div className="absolute top-4 right-4 cursor-pointer opacity-50 hover:opacity-100" onClick={() => handleCopy("payment-info")}>
+                      <Copy className="h-4 w-4" />
+                    </div>
+                    <h4 className="font-medium mb-4">{paymentDetails[paymentMethod].title}</h4>
+                    {paymentDetails[paymentMethod].details}
+                  </div>
+
+                  {/* Inputs */}
+                  <div className="space-y-4">
                     <div className="space-y-2">
-                    <Label htmlFor="transactionId">Transaction ID *</Label>
-                    <Input
-                        id="transactionId"
-                        placeholder="Enter transaction reference no."
-                        value={transactionId}
-                        onChange={(e) => setTransactionId(e.target.value)}
-                    />
+                      <Label htmlFor="transactionId">Transaction ID *</Label>
+                      <Input id="transactionId" placeholder="Enter transaction reference no." value={transactionId} onChange={(e) => setTransactionId(e.target.value)} />
                     </div>
 
                     <div className="space-y-2">
-                    <Label htmlFor="screenshot">Payment Screenshot *</Label>
-                    <div 
-                        className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:bg-secondary/30 transition-colors"
-                        onClick={() => fileInputRef.current?.click()}
-                    >
-                        <input 
-                        type="file" 
-                        hidden 
-                        ref={fileInputRef} 
-                        accept="image/*"
-                        onChange={handleFileUpload}
-                        />
+                      <Label htmlFor="screenshot">Payment Screenshot *</Label>
+                      <div className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:bg-secondary/30 transition-colors" onClick={() => fileInputRef.current?.click()}>
+                        <input type="file" hidden ref={fileInputRef} accept="image/*" onChange={handleFileUpload} />
                         {screenshot ? (
-                        <div className="flex items-center justify-center gap-2 text-primary font-medium">
-                            <CheckCircle className="h-5 w-5" />
-                            {screenshot.name}
-                        </div>
+                          <div className="flex items-center justify-center gap-2 text-primary font-medium">
+                            <CheckCircle className="h-5 w-5" /> {screenshot.name}
+                          </div>
                         ) : (
-                        <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                            <Upload className="h-8 w-8" />
-                            <span>Click to upload screenshot</span>
-                        </div>
+                          <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                            <Upload className="h-8 w-8" /> <span>Click to upload screenshot</span>
+                          </div>
                         )}
+                      </div>
                     </div>
-                    </div>
-                </div>
+                  </div>
 
-                <Button
-                  variant="gradient"
-                  size="lg"
-                  className="w-full"
-                  onClick={handleSubmit}
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? (
-                    <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 
-                        Processing...
-                    </>
-                  ) : 'Submit Order'}
-                </Button>
+                  <Button variant="gradient" size="lg" className="w-full" onClick={handleSubmitManual} disabled={isSubmitting}>
+                    {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</> : 'Submit Order'}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
 
-                <p className="text-xs text-center text-muted-foreground">
-                  Your license key will be delivered to your dashboard instantly upon Admin approval.
-                </p>
-              </CardContent>
-            </Card>
           </motion.div>
         </div>
       </div>

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import api from '@/lib/api';
-import { supabase } from '@/lib/supabase'; // ✅ IMPORT SUPABASE
+import { supabase } from '@/lib/supabase'; 
 
 /* =======================
    TYPES
@@ -356,8 +356,10 @@ export const useOrderStore = create<OrderState>((set) => ({
           createdAt: o.created_at,
           completedAt: o.updated_at,
           
-          // ✅ FIXED: Map correctly from 'licenses' join
-          licenseKey: o.licenses?.key, 
+          // ✅ FIXED: Map correctly from 'licenses' join object to flat string
+          // Supabase returns { licenses: { key: "XYZ" } }
+          // We map it to order.licenseKey = "XYZ"
+          licenseKey: o.licenses?.key || o.licenseKey || null, 
 
           softwareDownloadLink: o.products?.download_link,
         })),

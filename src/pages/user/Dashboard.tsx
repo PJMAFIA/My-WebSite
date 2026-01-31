@@ -13,7 +13,7 @@ import {
   Clock,
   TrendingUp,
   Loader2,
-  Wallet // ✅ Added Wallet Icon
+  Wallet
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -30,33 +30,28 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function UserDashboard() {
   const navigate = useNavigate();
-  // ✅ Get refreshUser from store to sync balance
   const { user, isAuthenticated, refreshUser } = useAuthStore();
   
-  // Get State & Actions from Store
   const { orders, fetchOrders, isLoading: ordersLoading } = useOrderStore();
   const { products, fetchProducts, isLoading: productsLoading } = useProductStore();
   
   const { toast } = useToast();
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  // 1. Data Loading Function
   const loadData = useCallback(async () => {
     if (!isAuthenticated) return;
     try {
       console.log("🔄 Dashboard: Fetching fresh data...");
-      // ✅ Fetch Orders, Products AND User Profile (Balance)
       await Promise.all([
         fetchOrders(), 
         fetchProducts(),
-        refreshUser() // <--- This fixes the balance sync issue
+        refreshUser()
       ]);
     } catch (error) {
       console.error("❌ Dashboard fetch error:", error);
     }
   }, [isAuthenticated, fetchOrders, fetchProducts, refreshUser]);
 
-  // 2. Fetch on Mount
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/login');
@@ -67,12 +62,10 @@ export default function UserDashboard() {
 
   if (!user) return null;
 
-  // Filter Data
   const isLoading = ordersLoading || productsLoading;
   const completedOrders = orders.filter(order => order.status === 'completed');
   const pendingOrders = orders.filter(order => order.status === 'pending');
 
-  // Helper Functions
   const copyToClipboard = (key: string) => {
     navigator.clipboard.writeText(key);
     setCopiedKey(key);
@@ -108,7 +101,7 @@ export default function UserDashboard() {
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           
-          {/* 💰 Wallet Balance Card (NEW) */}
+          {/* 💰 Wallet Balance Card */}
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
             <Card variant="glass" className="border-primary/20 bg-primary/5">
               <CardContent className="p-6 flex items-center gap-4">
@@ -196,6 +189,12 @@ export default function UserDashboard() {
                     const product = getProduct(order.productId);
                     if (!product) return null;
 
+                    // 🛠️ FIX START: Correctly extract nested license key
+                    // Supabase returns relations as objects: order.licenses.key
+                    const rawOrder = order as any;
+                    const actualLicenseKey = rawOrder.licenses?.key || rawOrder.licenseKey;
+                    // 🛠️ FIX END
+
                     return (
                       <div key={order.id} className="p-4 rounded-xl bg-secondary/50 border border-border/50">
                         <div className="flex flex-col lg:flex-row lg:items-center gap-4">
@@ -222,10 +221,11 @@ export default function UserDashboard() {
                             <p className="text-xs text-muted-foreground mb-1">License Key</p>
                             <div className="flex items-center gap-2">
                               <code className="flex-1 px-3 py-2 bg-background rounded-lg text-sm font-mono truncate">
-                                {order.licenseKey || 'Generating...'}
+                                {/* Use the extracted key here */}
+                                {actualLicenseKey || 'Processing...'}
                               </code>
-                              <Button variant="ghost" size="icon" onClick={() => order.licenseKey && copyToClipboard(order.licenseKey)}>
-                                {copiedKey === order.licenseKey ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
+                              <Button variant="ghost" size="icon" onClick={() => actualLicenseKey && copyToClipboard(actualLicenseKey)}>
+                                {copiedKey === actualLicenseKey ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
                               </Button>
                             </div>
                           </div>

@@ -13,19 +13,16 @@ type PlanType = '1_day' | '7_days' | '30_days' | 'lifetime';
 
 export default function ShopPage() {
   const navigate = useNavigate();
-  // 1. Destructure fetchProducts and isLoading from store
   const { products, fetchProducts, isLoading } = useProductStore();
   const { setCart } = useCartStore();
   const { isAuthenticated } = useAuthStore();
   const [search, setSearch] = useState('');
   const [selectedPlans, setSelectedPlans] = useState<Record<string, PlanType>>({});
 
-  // 2. Fetch products from Backend on load
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
 
-  // Initialize selected plans (Runs whenever products are updated)
   useEffect(() => {
     const initial: Record<string, PlanType> = {};
     products.forEach(p => {
@@ -45,6 +42,7 @@ export default function ShopPage() {
     
     if (product) {
       setCart(product, plan);
+      // We always send to checkout. The CheckoutPage determines if they pay via Wallet or Screenshot.
       if (isAuthenticated) {
         navigate('/checkout');
       } else {
@@ -75,7 +73,7 @@ export default function ShopPage() {
           </div>
         </div>
 
-        {/* Search and Filters */}
+        {/* Search */}
         <div className="flex flex-col md:flex-row gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -88,7 +86,7 @@ export default function ShopPage() {
           </div>
         </div>
 
-        {/* 3. Loading State */}
+        {/* Loading State */}
         {isLoading && products.length === 0 ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -106,7 +104,7 @@ export default function ShopPage() {
                 <Card variant="glass" className="h-full flex flex-col hover:border-primary/50 transition-all hover:shadow-lg hover:shadow-primary/10">
                   <CardContent className="p-6 flex-1 flex flex-col">
                     
-                    {/* 4. Product Image Logic (Image vs Placeholder) */}
+                    {/* Product Image */}
                     <div className="aspect-video rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 mb-6 flex items-center justify-center relative overflow-hidden group">
                       {product.image && product.image !== '/placeholder.svg' ? (
                         <img 
@@ -115,7 +113,6 @@ export default function ShopPage() {
                           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
                         />
                       ) : (
-                        // Fallback to Initial Letter if no image
                         <>
                           <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-accent/10 group-hover:from-primary/20 group-hover:to-accent/20 transition-all" />
                           <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center relative z-10 shadow-lg shadow-primary/30">
