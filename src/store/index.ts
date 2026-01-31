@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware'; // ✅ Added createJSONStorage
 import api from '@/lib/api';
 import { supabase } from '@/lib/supabase'; 
 
@@ -100,7 +100,7 @@ export const useAuthStore = create<AuthState>()(
       // 🟢 RESET: Only clears local data
       reset: () => {
         set({ user: null, token: null, isAuthenticated: false });
-        localStorage.clear(); 
+        sessionStorage.clear(); // ✅ Clear Session Storage
       },
 
       // 🔴 LOGOUT: Calls API + Reset
@@ -134,7 +134,12 @@ export const useAuthStore = create<AuthState>()(
         }
       }
     }),
-    { name: 'auth-storage' }
+    { 
+      name: 'auth-storage',
+      // 🔥 CRITICAL FIX: Use sessionStorage instead of localStorage
+      // This ensures the session dies when the browser/tab is closed.
+      storage: createJSONStorage(() => sessionStorage), 
+    }
   )
 );
 
