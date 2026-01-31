@@ -9,7 +9,8 @@ import {
   Save,
   X,
   Upload,
-  Loader2
+  Loader2,
+  Image as ImageIcon
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -30,7 +31,7 @@ import {
   Product
 } from '@/store';
 import { useToast } from '@/hooks/use-toast';
-import api from '@/lib/api'; // Import API helper
+import api from '@/lib/api'; 
 
 interface ProductFormData {
   name: string;
@@ -65,11 +66,11 @@ export default function AdminProductsPage() {
   const [editingProduct, setEditingProduct] = useState<string | null>(null);
   const [formData, setFormData] = useState<ProductFormData>(defaultFormData);
   
-  // Image Upload State
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  // ✅ Image State Management
+  const [imageFiles, setImageFiles] = useState<File[]>([]); // New files to upload
+  const [existingImages, setExistingImages] = useState<string[]>([]); // URLs of images already on server
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 1. Fetch products on load
   useEffect(() => {
     if (!isAuthenticated || user?.role !== 'admin') {
       navigate('/login');
@@ -81,9 +82,20 @@ export default function AdminProductsPage() {
   if (!user || user.role !== 'admin') return null;
 
   const handleOpenModal = (product?: Product) => {
-    setImageFile(null); // Reset image
+    setImageFiles([]); // Reset new uploads
+    setExistingImages([]); // Reset existing
+
     if (product) {
       setEditingProduct(product.id);
+      
+      // Populate existing images
+      // If product.images exists, use it. If not, fallback to product.image (single), or empty array.
+      const currentImages = product.images && product.images.length > 0 
+        ? product.images 
+        : (product.image ? [product.image] : []);
+      
+      setExistingImages(currentImages);
+
       setFormData({
         name: product.name,
         description: product.description,
@@ -103,85 +115,89 @@ export default function AdminProductsPage() {
     setIsModalOpen(false);
     setEditingProduct(null);
     setFormData(defaultFormData);
-    setImageFile(null);
+    setImageFiles([]);
+    setExistingImages([]);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const files = Array.from(e.target.files);
+      setImageFiles(prev => [...prev, ...files]);
+    }
+  };
+
+  const removeNewFile = (index: number) => {
+    setImageFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const removeExistingImage = (index: number) => {
+    setExistingImages(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async () => {
     if (!formData.name.trim()) {
-      toast({
-        title: 'Validation Error',
-        description: 'Product name is required.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Validation Error', description: 'Name required.', variant: 'destructive' });
       return;
     }
 
     try {
+      // ✅ 1. Build FormData (Used for BOTH Create and Edit to support images)
+      const data = new FormData();
+      data.append('name', formData.name);
+      data.append('description', formData.description);
+      data.append('software_name', 'Software Name');
+      
+      // Append Prices (Convert to string to ensure backend receives them correctly)
+      data.append('price_1_day', formData.prices['1_day'].toString());
+      data.append('price_7_days', formData.prices['7_days'].toString());
+      data.append('price_30_days', formData.prices['30_days'].toString());
+      data.append('price_lifetime', formData.prices['lifetime'].toString());
+      
+      data.append('download_link', formData.softwareDownloadLink);
+      data.append('tutorial_video_link', formData.tutorialVideoLink);
+      data.append('activation_process', formData.applyProcess);
+
+      // Append NEW Images
+      imageFiles.forEach(file => {
+        data.append('images', file);
+      });
+
+      // Append EXISTING Images (So backend knows what to keep)
+      // We send this as a JSON string
+      data.append('existing_images', JSON.stringify(existingImages));
+
       if (editingProduct) {
-        // Edit Mode
-        updateProduct(editingProduct, {
-          ...formData,
-        });
-        toast({ title: 'Product Updated', description: 'Product updated successfully.' });
+        // ✅ EDIT MODE
+        await updateProduct(editingProduct, data);
+        toast({ title: 'Product Updated', description: 'Changes saved successfully.' });
       } else {
-        // Create Mode
-        const data = new FormData();
-        data.append('name', formData.name);
-        data.append('description', formData.description);
-        data.append('software_name', 'Software Name');
-        data.append('price_1_day', formData.prices['1_day'].toString());
-        data.append('price_7_days', formData.prices['7_days'].toString());
-        data.append('price_30_days', formData.prices['30_days'].toString());
-        data.append('price_lifetime', formData.prices['lifetime'].toString());
-        data.append('download_link', formData.softwareDownloadLink);
-        data.append('tutorial_video_link', formData.tutorialVideoLink);
-        data.append('activation_process', formData.applyProcess);
-
-        if (imageFile) {
-          data.append('image', imageFile);
-        }
-
+        // ✅ CREATE MODE
         await addProduct(data);
-        
         toast({ title: 'Product Created', description: 'New product added successfully.' });
       }
+
       handleCloseModal();
-      fetchProducts(); // Refresh list from backend
+      fetchProducts(); 
     } catch (error) {
-      toast({ 
-        title: 'Error', 
-        description: 'Failed to save product.', 
-        variant: 'destructive' 
-      });
+      console.error(error);
+      toast({ title: 'Error', description: 'Failed to save product.', variant: 'destructive' });
     }
   };
 
-  // --- DELETE LOGIC ---
   const handleDelete = async (productId: string) => {
     if (!confirm('Are you sure you want to delete this product? This cannot be undone.')) return;
-
     try {
-      // Call Backend API
       await api.delete(`/products/${productId}`);
-      
-      // Success Message
-      toast({ title: 'Product Deleted', description: 'Product has been removed from database.' });
-      
-      // Refresh List
+      toast({ title: 'Product Deleted', description: 'Product removed.' });
       fetchProducts();
     } catch (error: any) {
-      toast({
-        title: 'Delete Failed',
-        description: error.response?.data?.message || 'Could not delete product.',
-        variant: 'destructive'
-      });
+      toast({ title: 'Delete Failed', description: 'Could not delete product.', variant: 'destructive' });
     }
   };
 
   return (
     <MainLayout>
       <div className="space-y-8">
-        {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-3">
@@ -209,10 +225,10 @@ export default function AdminProductsPage() {
             >
               <Card variant="glass" className="h-full">
                 <CardContent className="p-6">
-                  {/* Product Image */}
-                  <div className="aspect-video rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 mb-4 overflow-hidden relative">
-                    {product.image && product.image !== '/placeholder.svg' ? (
-                       <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                  {/* Product Image Preview */}
+                  <div className="aspect-video rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 mb-4 overflow-hidden relative group">
+                    {product.images && product.images.length > 0 ? (
+                       <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <span className="text-2xl font-bold text-primary-foreground">
@@ -220,15 +236,18 @@ export default function AdminProductsPage() {
                         </span>
                       </div>
                     )}
+                    {product.images && product.images.length > 1 && (
+                      <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
+                        <ImageIcon className="h-3 w-3" /> {product.images.length}
+                      </div>
+                    )}
                   </div>
 
-                  {/* Product Info */}
                   <h3 className="text-lg font-semibold mb-2">{product.name}</h3>
                   <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
                     {product.description}
                   </p>
 
-                  {/* Pricing */}
                   <div className="grid grid-cols-2 gap-2 mb-4 text-sm">
                     {Object.entries(product.prices).map(([plan, price]) => (
                       <div key={plan} className="p-2 bg-secondary/50 rounded-lg">
@@ -238,23 +257,11 @@ export default function AdminProductsPage() {
                     ))}
                   </div>
 
-                  {/* Actions */}
                   <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => handleOpenModal(product)}
-                    >
-                      <Edit className="h-4 w-4" />
-                      Edit
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => handleOpenModal(product)}>
+                      <Edit className="h-4 w-4 mr-2" /> Edit
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => handleDelete(product.id)}
-                    >
+                    <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleDelete(product.id)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
@@ -264,21 +271,6 @@ export default function AdminProductsPage() {
           ))}
         </div>
 
-        {/* Empty State */}
-        {products.length === 0 && !isLoading && (
-          <div className="text-center py-16">
-            <Package className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-xl font-semibold mb-2">No products yet</h3>
-            <p className="text-muted-foreground mb-4">
-              Add your first product to get started
-            </p>
-            <Button variant="gradient" onClick={() => handleOpenModal()}>
-              <Plus className="h-4 w-4" />
-              Add Product
-            </Button>
-          </div>
-        )}
-
         {/* Product Modal */}
         <Dialog open={isModalOpen} onOpenChange={handleCloseModal}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -287,17 +279,37 @@ export default function AdminProductsPage() {
                 {editingProduct ? 'Edit Product' : 'Add New Product'}
               </DialogTitle>
               <DialogDescription>
-                {editingProduct
-                  ? 'Update the product details below'
-                  : 'Fill in the details for your new product'}
+                Manage images and details below.
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-6">
               
-              {/* Image Upload */}
-              <div className="space-y-2">
-                <Label>Product Image</Label>
+              {/* Image Manager */}
+              <div className="space-y-3">
+                <Label>Product Images</Label>
+                
+                {/* 1. Existing Images List */}
+                {existingImages.length > 0 && (
+                  <div className="mb-2">
+                    <p className="text-xs text-muted-foreground mb-2">Current Images:</p>
+                    <div className="grid grid-cols-4 gap-3">
+                      {existingImages.map((url, idx) => (
+                        <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border border-border">
+                          <img src={url} alt="Existing" className="w-full h-full object-cover" />
+                          <button 
+                            onClick={() => removeExistingImage(idx)}
+                            className="absolute top-1 right-1 bg-destructive/90 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition hover:bg-destructive"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. New Upload Area */}
                 <div 
                   className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:bg-secondary/30 transition"
                   onClick={() => fileInputRef.current?.click()}
@@ -307,17 +319,31 @@ export default function AdminProductsPage() {
                     hidden 
                     ref={fileInputRef} 
                     accept="image/*"
-                    onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+                    multiple 
+                    onChange={handleFileChange}
                   />
-                  {imageFile ? (
-                    <p className="text-primary font-medium">{imageFile.name}</p>
-                  ) : (
-                    <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                      <Upload className="h-8 w-8" />
-                      <span>Click to upload cover image</span>
-                    </div>
-                  )}
+                  <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                    <Upload className="h-8 w-8" />
+                    <span>Click to add new images</span>
+                  </div>
                 </div>
+
+                {/* 3. New Files Preview */}
+                {imageFiles.length > 0 && (
+                  <div className="grid grid-cols-4 gap-2 mt-2">
+                    {imageFiles.map((file, idx) => (
+                      <div key={idx} className="relative group aspect-square bg-secondary/50 rounded-lg border border-border flex items-center justify-center">
+                         <span className="text-[10px] text-muted-foreground p-1 break-all text-center">{file.name}</span>
+                         <button 
+                          onClick={() => removeNewFile(idx)}
+                          className="absolute -top-1 -right-1 bg-destructive text-white rounded-full p-0.5"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Basic Info */}
@@ -346,14 +372,15 @@ export default function AdminProductsPage() {
 
               {/* Pricing */}
               <div className="space-y-4">
-                <h4 className="font-medium">Pricing</h4>
+                <h4 className="font-medium">Pricing ($)</h4>
                 <div className="grid grid-cols-2 gap-4">
                   {(['1_day', '7_days', '30_days', 'lifetime'] as const).map(plan => (
                     <div key={plan} className="space-y-2">
-                      <Label className="capitalize">{plan.replace('_', ' ')} ($)</Label>
+                      <Label className="capitalize">{plan.replace('_', ' ')}</Label>
                       <Input
                         type="number"
                         step="0.01"
+                        min="0"
                         value={formData.prices[plan]}
                         onChange={(e) => setFormData(prev => ({
                           ...prev,
@@ -374,7 +401,6 @@ export default function AdminProductsPage() {
                     id="downloadLink"
                     value={formData.softwareDownloadLink}
                     onChange={(e) => setFormData(prev => ({ ...prev, softwareDownloadLink: e.target.value }))}
-                    placeholder="https://example.com/download"
                   />
                 </div>
                 <div className="space-y-2">
@@ -383,7 +409,6 @@ export default function AdminProductsPage() {
                     id="tutorialLink"
                     value={formData.tutorialVideoLink}
                     onChange={(e) => setFormData(prev => ({ ...prev, tutorialVideoLink: e.target.value }))}
-                    placeholder="https://youtube.com/watch?v=..."
                   />
                 </div>
                 <div className="space-y-2">
@@ -392,20 +417,17 @@ export default function AdminProductsPage() {
                     id="applyProcess"
                     value={formData.applyProcess}
                     onChange={(e) => setFormData(prev => ({ ...prev, applyProcess: e.target.value }))}
-                    placeholder="Step-by-step instructions..."
-                    rows={4}
+                    rows={3}
                   />
                 </div>
               </div>
 
-              {/* Actions */}
               <div className="flex gap-3 pt-4">
                 <Button variant="gradient" className="flex-1" onClick={handleSubmit} disabled={isLoading}>
                   {isLoading ? <Loader2 className="animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                   {editingProduct ? 'Update Product' : 'Create Product'}
                 </Button>
                 <Button variant="outline" onClick={handleCloseModal}>
-                  <X className="h-4 w-4 mr-2" />
                   Cancel
                 </Button>
               </div>

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware'; // ✅ Added createJSONStorage
+import { persist, createJSONStorage } from 'zustand/middleware';
 import api from '@/lib/api';
 import { supabase } from '@/lib/supabase'; 
 
@@ -21,6 +21,7 @@ export interface Product {
   name: string;
   description: string;
   image: string;
+  images: string[];
   prices: {
     '1_day': number;
     '7_days': number;
@@ -97,13 +98,11 @@ export const useAuthStore = create<AuthState>()(
       login: (user, token) =>
         set({ user, token, isAuthenticated: true }),
 
-      // 🟢 RESET: Only clears local data
       reset: () => {
         set({ user: null, token: null, isAuthenticated: false });
-        sessionStorage.clear(); // ✅ Clear Session Storage
+        sessionStorage.clear(); 
       },
 
-      // 🔴 LOGOUT: Calls API + Reset
       logout: async () => {
         try {
           await supabase.auth.signOut(); 
@@ -122,12 +121,8 @@ export const useAuthStore = create<AuthState>()(
 
       refreshUser: async () => {
         try {
-          // This calls the Backend Controller that fetches the REAL balance
           const res = await api.get('/users/me');
-          
-          // Debug logs to help you see the data coming in
           console.log("💰 User Refresh Data:", res.data.data);
-          
           set({ user: res.data.data });
         } catch (e) {
           console.error("Failed to refresh user", e);
@@ -136,8 +131,6 @@ export const useAuthStore = create<AuthState>()(
     }),
     { 
       name: 'auth-storage',
-      // 🔥 CRITICAL FIX: Use sessionStorage instead of localStorage
-      // This ensures the session dies when the browser/tab is closed.
       storage: createJSONStorage(() => sessionStorage), 
     }
   )
@@ -150,8 +143,8 @@ export const useAuthStore = create<AuthState>()(
 interface BalanceRequestState {
   balanceRequests: BalanceRequest[];
   isLoading: boolean;
-  fetchRequests: () => Promise<void>; // Admin
-  fetchUserRequests: () => Promise<void>; // User
+  fetchRequests: () => Promise<void>; 
+  fetchUserRequests: () => Promise<void>; 
   addBalanceRequest: (formData: FormData) => Promise<void>;
   updateBalanceRequestStatus: (
     id: string,
@@ -163,7 +156,6 @@ export const useBalanceRequestStore = create<BalanceRequestState>((set) => ({
   balanceRequests: [],
   isLoading: false,
 
-  // Admin: Fetch all requests
   fetchRequests: async () => {
     set({ isLoading: true });
     try {
@@ -187,7 +179,6 @@ export const useBalanceRequestStore = create<BalanceRequestState>((set) => ({
     }
   },
 
-  // User: Fetch OWN requests
   fetchUserRequests: async () => {
     set({ isLoading: true });
     try {
@@ -245,7 +236,7 @@ interface ProductState {
   isLoading: boolean;
   fetchProducts: () => Promise<void>;
   addProduct: (formData: FormData) => Promise<void>;
-  updateProduct: (id: string, updates: Partial<Product>) => void;
+  updateProduct: (id: string, updates: any) => Promise<void>; // ✅ Updated Signature
   deleteProduct: (id: string) => void;
 }
 
@@ -262,6 +253,7 @@ export const useProductStore = create<ProductState>((set) => ({
         name: p.name,
         description: p.description,
         image: p.image_url || '/placeholder.svg',
+        images: p.images && p.images.length > 0 ? p.images : [p.image_url || '/placeholder.svg'], 
         prices: {
           '1_day': Number(p.price_1_day),
           '7_days': Number(p.price_7_days),
@@ -281,38 +273,31 @@ export const useProductStore = create<ProductState>((set) => ({
   addProduct: async (formData) => {
     set({ isLoading: true });
     try {
-      const res = await api.post('/products', formData, {
+      await api.post('/products', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      const p = res.data.data;
-      set((state) => ({
-        products: [
-          {
-            id: p.id,
-            name: p.name,
-            description: p.description,
-            image: p.image_url,
-            prices: {
-              '1_day': Number(p.price_1_day),
-              '7_days': Number(p.price_7_days),
-              '30_days': Number(p.price_30_days),
-              'lifetime': Number(p.price_lifetime),
-            },
-          },
-          ...state.products,
-        ],
-      }));
+      // Refresh list handled by caller or we can auto-fetch
     } finally {
       set({ isLoading: false });
     }
   },
 
-  updateProduct: (id, updates) =>
-    set((state) => ({
-      products: state.products.map((p) =>
-        p.id === id ? { ...p, ...updates } : p
-      ),
-    })),
+  // ✅ FIXED: Calls API PUT request
+  updateProduct: async (id, updates) => {
+    set({ isLoading: true });
+    try {
+      // Check if 'updates' is FormData (for files) or just JSON
+      const isFormData = updates instanceof FormData;
+      const headers = isFormData ? { 'Content-Type': 'multipart/form-data' } : {};
+
+      await api.put(`/products/${id}`, updates, { headers });
+      
+      // We don't manually update local state here because the Admin Page 
+      // calls fetchProducts() immediately after this succeeds.
+    } finally {
+      set({ isLoading: false });
+    }
+  },
 
   deleteProduct: (id) =>
     set((state) => ({
@@ -321,7 +306,7 @@ export const useProductStore = create<ProductState>((set) => ({
 }));
 
 /* =======================
-   ORDER STORE (FIXED MAPPING)
+   ORDER STORE
 ======================= */
 
 interface OrderState {
@@ -360,12 +345,7 @@ export const useOrderStore = create<OrderState>((set) => ({
           paymentScreenshot: o.payment_screenshot_url,
           createdAt: o.created_at,
           completedAt: o.updated_at,
-          
-          // ✅ FIXED: Map correctly from 'licenses' join object to flat string
-          // Supabase returns { licenses: { key: "XYZ" } }
-          // We map it to order.licenseKey = "XYZ"
           licenseKey: o.licenses?.key || o.licenseKey || null, 
-
           softwareDownloadLink: o.products?.download_link,
         })),
       });

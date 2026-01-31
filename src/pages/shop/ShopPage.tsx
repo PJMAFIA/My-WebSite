@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { ShoppingBag, Search, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ShoppingBag, Search, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,99 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useProductStore, useCartStore, useAuthStore, formatPlan } from '@/store';
 
 type PlanType = '1_day' | '7_days' | '30_days' | 'lifetime';
+
+// --- 🌟 NEW: Dedicated Slider Component for smooth effects ---
+const ProductImageSlider = ({ images, name }: { images: string[]; name: string }) => {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [direction, setDirection] = useState(0); // -1 for left, 1 for right
+
+  const slideVariants = {
+    enter: (direction: number) => ({
+      x: direction > 0 ? 1000 : -1000,
+      opacity: 0
+    }),
+    center: {
+      zIndex: 1,
+      x: 0,
+      opacity: 1
+    },
+    exit: (direction: number) => ({
+      zIndex: 0,
+      x: direction < 0 ? 1000 : -1000,
+      opacity: 0
+    })
+  };
+
+  const paginate = (newDirection: number) => {
+    setDirection(newDirection);
+    setCurrentIndex((prevIndex) => (prevIndex + newDirection + images.length) % images.length);
+  };
+
+  const hasMultiple = images.length > 1;
+
+  return (
+    <div className="aspect-video rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 mb-6 relative overflow-hidden group">
+      
+      {/* Image Animation Container */}
+      <AnimatePresence initial={false} custom={direction}>
+        <motion.img
+          key={currentIndex} // Key ensures React treats new index as a new element to animate
+          src={images[currentIndex]}
+          alt={`${name} - ${currentIndex + 1}`}
+          custom={direction}
+          variants={slideVariants}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          transition={{
+            x: { type: "spring", stiffness: 300, damping: 30 },
+            opacity: { duration: 0.2 }
+          }}
+          className="absolute w-full h-full object-contain p-4"
+        />
+      </AnimatePresence>
+
+      {/* Fallback for placeholder if image is missing/broken */}
+      {(!images || images.length === 0) && (
+        <div className="w-full h-full flex items-center justify-center absolute inset-0">
+          <span className="text-3xl font-bold text-primary-foreground">
+            {name.charAt(0)}
+          </span>
+        </div>
+      )}
+
+      {/* Controls */}
+      {hasMultiple && (
+        <>
+          <button
+            onClick={(e) => { e.stopPropagation(); paginate(-1); }}
+            className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition hover:bg-black/70 z-10"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); paginate(1); }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition hover:bg-black/70 z-10"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+
+          {/* Dots */}
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-10">
+            {images.map((_, idx) => (
+              <div
+                key={idx}
+                className={`h-1.5 w-1.5 rounded-full transition-colors ${
+                  idx === currentIndex ? 'bg-primary' : 'bg-white/50'
+                }`}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
 
 export default function ShopPage() {
   const navigate = useNavigate();
@@ -103,26 +196,11 @@ export default function ShopPage() {
                 <Card variant="glass" className="h-full flex flex-col hover:border-primary/50 transition-all hover:shadow-lg hover:shadow-primary/10">
                   <CardContent className="p-6 flex-1 flex flex-col">
                     
-                    {/* Product Image - FIXED */}
-                    <div className="aspect-video rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 mb-6 flex items-center justify-center relative overflow-hidden group">
-                      {product.image && product.image !== '/placeholder.svg' ? (
-                        <img 
-                          src={product.image} 
-                          alt={product.name} 
-                          // 🔥 FIX: Changed object-cover to object-contain and added padding
-                          className="w-full h-full object-contain p-4 transition-transform duration-500 group-hover:scale-105" 
-                        />
-                      ) : (
-                        <>
-                          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-accent/10 group-hover:from-primary/20 group-hover:to-accent/20 transition-all" />
-                          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center relative z-10 shadow-lg shadow-primary/30">
-                            <span className="text-3xl font-bold text-primary-foreground">
-                              {product.name.charAt(0)}
-                            </span>
-                          </div>
-                        </>
-                      )}
-                    </div>
+                    {/* ✅ Uses the new Slider Component */}
+                    <ProductImageSlider 
+                      images={product.images && product.images.length > 0 ? product.images : [product.image]} 
+                      name={product.name} 
+                    />
 
                     {/* Product Info */}
                     <div className="flex-1">
