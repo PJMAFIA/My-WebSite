@@ -42,7 +42,6 @@ export default function ShopPage() {
     
     if (product) {
       setCart(product, plan);
-      // We always send to checkout. The CheckoutPage determines if they pay via Wallet or Screenshot.
       if (isAuthenticated) {
         navigate('/checkout');
       } else {
@@ -104,13 +103,14 @@ export default function ShopPage() {
                 <Card variant="glass" className="h-full flex flex-col hover:border-primary/50 transition-all hover:shadow-lg hover:shadow-primary/10">
                   <CardContent className="p-6 flex-1 flex flex-col">
                     
-                    {/* Product Image */}
+                    {/* Product Image - FIXED */}
                     <div className="aspect-video rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 mb-6 flex items-center justify-center relative overflow-hidden group">
                       {product.image && product.image !== '/placeholder.svg' ? (
                         <img 
                           src={product.image} 
                           alt={product.name} 
-                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                          // 🔥 FIX: Changed object-cover to object-contain and added padding
+                          className="w-full h-full object-contain p-4 transition-transform duration-500 group-hover:scale-105" 
                         />
                       ) : (
                         <>

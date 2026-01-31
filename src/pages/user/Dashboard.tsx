@@ -189,11 +189,8 @@ export default function UserDashboard() {
                     const product = getProduct(order.productId);
                     if (!product) return null;
 
-                    // 🛠️ FIX START: Correctly extract nested license key
-                    // Supabase returns relations as objects: order.licenses.key
                     const rawOrder = order as any;
                     const actualLicenseKey = rawOrder.licenses?.key || rawOrder.licenseKey;
-                    // 🛠️ FIX END
 
                     return (
                       <div key={order.id} className="p-4 rounded-xl bg-secondary/50 border border-border/50">
@@ -202,7 +199,12 @@ export default function UserDashboard() {
                           <div className="flex items-center gap-4 flex-1">
                             <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center flex-shrink-0 overflow-hidden">
                                {product.image && product.image !== '/placeholder.svg' ? (
-                                  <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                                  <img 
+                                    src={product.image} 
+                                    alt={product.name} 
+                                    // 🔥 FIX: object-contain with padding
+                                    className="w-full h-full object-contain p-1" 
+                                  />
                                ) : (
                                   <span className="text-xl font-bold text-primary">{product.name.charAt(0)}</span>
                                )}
@@ -221,7 +223,6 @@ export default function UserDashboard() {
                             <p className="text-xs text-muted-foreground mb-1">License Key</p>
                             <div className="flex items-center gap-2">
                               <code className="flex-1 px-3 py-2 bg-background rounded-lg text-sm font-mono truncate">
-                                {/* Use the extracted key here */}
                                 {actualLicenseKey || 'Processing...'}
                               </code>
                               <Button variant="ghost" size="icon" onClick={() => actualLicenseKey && copyToClipboard(actualLicenseKey)}>

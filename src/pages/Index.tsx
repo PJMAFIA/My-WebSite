@@ -1,9 +1,11 @@
-import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react'; 
+import { Link, useNavigate } from 'react-router-dom'; 
 import { motion } from 'framer-motion';
-import { ArrowRight, Shield, Zap, Cloud, Lock, ChevronRight, Star } from 'lucide-react';
+import { ArrowRight, Shield, Zap, Cloud, Lock, ChevronRight, Star, CheckCircle2, ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { useAuthStore, useProductStore } from '@/store';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { useAuthStore, useProductStore, useCartStore, formatPlan } from '@/store'; 
 
 const features = [
   {
@@ -50,17 +52,35 @@ const testimonials = [
 ];
 
 export default function Index() {
+  const navigate = useNavigate();
   const { isAuthenticated, user } = useAuthStore();
-  const { products } = useProductStore();
+  const { products, fetchProducts, isLoading } = useProductStore();
+  const { setCart } = useCartStore();
+
+  const [selectedDuration, setSelectedDuration] = useState<'1_day' | '7_days' | '30_days' | 'lifetime'>('30_days');
+
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
+
+  const handleBuyNow = (product: any) => {
+    setCart(product, selectedDuration);
+    navigate('/checkout');
+  };
+
+  const scrollToSection = (id: string) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Background effects */}
       <div className="fixed inset-0 bg-grid opacity-30 pointer-events-none" />
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[1200px] h-[800px] bg-gradient-radial from-primary/10 via-transparent to-transparent pointer-events-none" />
       
-      {/* Header */}
-      <header className="relative z-10 border-b border-border/50 backdrop-blur-xl bg-background/80">
+      <header className="relative z-10 border-b border-border/50 backdrop-blur-xl bg-background/80 sticky top-0">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center glow">
@@ -73,12 +93,12 @@ export default function Index() {
             <Link to="/shop" className="text-muted-foreground hover:text-foreground transition-colors">
               Products
             </Link>
-            <Link to="#features" className="text-muted-foreground hover:text-foreground transition-colors">
+            <button onClick={() => scrollToSection('features')} className="text-muted-foreground hover:text-foreground transition-colors">
               Features
-            </Link>
-            <Link to="#pricing" className="text-muted-foreground hover:text-foreground transition-colors">
+            </button>
+            <button onClick={() => scrollToSection('pricing')} className="text-muted-foreground hover:text-foreground transition-colors">
               Pricing
-            </Link>
+            </button>
           </nav>
 
           <div className="flex items-center gap-3">
@@ -131,11 +151,9 @@ export default function Index() {
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Button asChild variant="gradient" size="xl">
-                <Link to="/shop">
-                  Browse Products
-                  <ArrowRight className="h-5 w-5" />
-                </Link>
+              <Button onClick={() => scrollToSection('pricing')} variant="gradient" size="xl">
+                Browse Pricing
+                <ArrowRight className="h-5 w-5 ml-2" />
               </Button>
               <Button asChild variant="outline" size="xl">
                 <Link to="/register">Create Free Account</Link>
@@ -207,25 +225,45 @@ export default function Index() {
         </div>
       </section>
 
-      {/* Products Preview */}
-      <section className="relative z-10 py-24">
+      {/* PRICING SECTION */}
+      <section id="pricing" className="relative z-10 py-24">
         <div className="container mx-auto px-4">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-16"
-          >
+          <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Featured <span className="text-gradient">Products</span>
+              Simple, Transparent <span className="text-gradient">Pricing</span>
             </h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              Explore our curated selection of premium software solutions.
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto mb-8">
+              Choose the license duration that fits your needs. No hidden fees.
             </p>
-          </motion.div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {products.slice(0, 3).map((product, i) => (
+            {/* Duration Selector */}
+            <div className="inline-flex p-1 bg-secondary/50 rounded-xl border border-border/50 backdrop-blur-sm">
+              {[
+                { id: '1_day', label: '1 Day' },
+                { id: '7_days', label: '7 Days' },
+                { id: '30_days', label: '30 Days' },
+                { id: 'lifetime', label: 'Lifetime' }
+              ].map((plan) => (
+                <button
+                  key={plan.id}
+                  onClick={() => setSelectedDuration(plan.id as any)}
+                  className={`
+                    px-6 py-2.5 rounded-lg text-sm font-medium transition-all duration-200
+                    ${selectedDuration === plan.id 
+                      ? 'bg-primary text-primary-foreground shadow-lg' 
+                      : 'text-muted-foreground hover:text-foreground hover:bg-white/5'}
+                  `}
+                >
+                  {plan.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {isLoading ? (
+               <div className="col-span-full text-center py-20 text-muted-foreground">Loading products...</div>
+            ) : products.map((product, i) => (
               <motion.div
                 key={product.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -233,44 +271,80 @@ export default function Index() {
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.1 }}
               >
-                <Card variant="glass" className="h-full hover:border-primary/50 transition-all hover:shadow-lg hover:shadow-primary/10">
-                  <CardContent className="p-6">
-                    <div className="aspect-video rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 mb-4 flex items-center justify-center relative overflow-hidden">
-                       {product.image && product.image !== '/placeholder.svg' ? (
-                          <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
-                       ) : (
-                          <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-                            <span className="text-2xl font-bold text-primary-foreground">
-                              {product.name.charAt(0)}
-                            </span>
-                          </div>
+                <Card variant="glass" className="h-full flex flex-col hover:border-primary/50 transition-all duration-300 hover:shadow-2xl hover:shadow-primary/5 group">
+                  <CardHeader>
+                    <div className="flex justify-between items-start mb-4">
+                       <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center overflow-hidden">
+                          {product.image && product.image !== '/placeholder.svg' ? (
+                            <img 
+                              src={product.image} 
+                              alt={product.name} 
+                              // 🔥 FIX: object-contain with padding
+                              className="w-full h-full object-contain p-2 rounded-xl" 
+                            />
+                          ) : (
+                            <span className="font-bold text-primary text-xl">{product.name.charAt(0)}</span>
+                          )}
+                       </div>
+                       {selectedDuration === 'lifetime' && (
+                         <Badge variant="active" className="bg-primary/20 text-primary border-primary/20">Best Value</Badge>
                        )}
                     </div>
-                    <h3 className="font-semibold text-lg mb-2">{product.name}</h3>
-                    <p className="text-muted-foreground text-sm mb-4 line-clamp-2">
+                    <CardTitle className="text-xl">{product.name}</CardTitle>
+                    <CardDescription className="line-clamp-2 mt-2 h-10">
                       {product.description}
-                    </p>
-                    <div className="flex items-center justify-between">
-                      <p className="text-primary font-semibold">
-                        From ${product.prices['1_day']}
-                      </p>
-                      <Button asChild size="sm">
-                        <Link to="/shop">View Details</Link>
-                      </Button>
+                    </CardDescription>
+                  </CardHeader>
+                  
+                  <CardContent className="flex-grow">
+                    <div className="mb-6">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-3xl font-bold">$</span>
+                        <span className="text-5xl font-bold tracking-tight">
+                          {product.prices[selectedDuration]}
+                        </span>
+                        <span className="text-muted-foreground ml-2">
+                          / {formatPlan(selectedDuration).toLowerCase()}
+                        </span>
+                      </div>
                     </div>
+                    
+                    <ul className="space-y-3">
+                      <li className="flex items-center gap-3 text-sm text-muted-foreground">
+                        <CheckCircle2 className="h-4 w-4 text-primary" />
+                        <span>Instant Delivery</span>
+                      </li>
+                      <li className="flex items-center gap-3 text-sm text-muted-foreground">
+                        <CheckCircle2 className="h-4 w-4 text-primary" />
+                        <span>Secure License Key</span>
+                      </li>
+                      <li className="flex items-center gap-3 text-sm text-muted-foreground">
+                        <CheckCircle2 className="h-4 w-4 text-primary" />
+                        <span>24/7 Support</span>
+                      </li>
+                      {selectedDuration === 'lifetime' && (
+                        <li className="flex items-center gap-3 text-sm font-medium text-primary">
+                          <CheckCircle2 className="h-4 w-4" />
+                          <span>One-time Payment</span>
+                        </li>
+                      )}
+                    </ul>
                   </CardContent>
+
+                  <CardFooter>
+                    <Button 
+                      onClick={() => handleBuyNow(product)} 
+                      className="w-full group-hover:bg-primary group-hover:text-primary-foreground transition-colors"
+                      variant="outline"
+                      size="lg"
+                    >
+                      <ShoppingCart className="mr-2 h-4 w-4" />
+                      Buy Now
+                    </Button>
+                  </CardFooter>
                 </Card>
               </motion.div>
             ))}
-          </div>
-
-          <div className="text-center mt-8">
-            <Button asChild variant="outline" size="lg">
-              <Link to="/shop">
-                View All Products
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
           </div>
         </div>
       </section>
