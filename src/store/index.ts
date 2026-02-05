@@ -7,12 +7,23 @@ import { supabase } from '@/lib/supabase';
    TYPES
 ======================= */
 
+export type CurrencyType = 'USD' | 'GBP' | 'INR' | 'PKR' | 'BDT';
+
+export interface PriceStructure {
+  '1_day': number;
+  '7_days': number;
+  '30_days': number;
+  'lifetime': number;
+}
+
 export interface User {
   id: string;
   email: string;
   name: string;
   role: 'user' | 'admin';
   balance: number;
+  country?: string; 
+  currency?: CurrencyType; 
   createdAt: string;
 }
 
@@ -22,11 +33,12 @@ export interface Product {
   description: string;
   image: string;
   images: string[];
-  prices: {
-    '1_day': number;
-    '7_days': number;
-    '30_days': number;
-    'lifetime': number;
+  prices: PriceStructure; 
+  currency_prices?: {
+    GBP?: PriceStructure;
+    INR?: PriceStructure;
+    PKR?: PriceStructure;
+    BDT?: PriceStructure;
   };
   softwareDownloadLink?: string;
   tutorialVideoLink?: string;
@@ -49,6 +61,7 @@ export interface Order {
   productId: string;
   plan: '1_day' | '7_days' | '30_days' | 'lifetime';
   price: number;
+  currency?: string; 
   status: 'pending' | 'completed' | 'rejected';
   paymentMethod: 'upi' | 'crypto' | 'bank_transfer' | 'paypal';
   transactionId: string;
@@ -65,6 +78,8 @@ export interface BalanceRequest {
   userName: string;
   userEmail: string;
   amount: number;
+  // ✅ ADDED: Currency field
+  currency?: string; 
   paymentMethod: 'upi' | 'crypto' | 'bank_transfer' | 'paypal';
   transactionId: string;
   paymentScreenshot?: string;
@@ -95,8 +110,7 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       isAuthenticated: false,
 
-      login: (user, token) =>
-        set({ user, token, isAuthenticated: true }),
+      login: (user, token) => set({ user, token, isAuthenticated: true }),
 
       reset: () => {
         set({ user: null, token: null, isAuthenticated: false });
@@ -104,29 +118,18 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: async () => {
-        try {
-          await supabase.auth.signOut(); 
-        } catch (error) {
-          console.error("Supabase signOut failed", error);
-        }
+        try { await supabase.auth.signOut(); } catch (error) { console.error("Supabase signOut failed", error); }
         get().reset(); 
       },
 
       updateBalance: (amount) =>
-        set((state) => ({
-          user: state.user
-            ? { ...state.user, balance: state.user.balance + amount }
-            : null,
-        })),
+        set((state) => ({ user: state.user ? { ...state.user, balance: state.user.balance + amount } : null })),
 
       refreshUser: async () => {
         try {
           const res = await api.get('/users/me');
-          console.log("💰 User Refresh Data:", res.data.data);
           set({ user: res.data.data });
-        } catch (e) {
-          console.error("Failed to refresh user", e);
-        }
+        } catch (e) { console.error("Failed to refresh user", e); }
       }
     }),
     { 
@@ -146,10 +149,7 @@ interface BalanceRequestState {
   fetchRequests: () => Promise<void>; 
   fetchUserRequests: () => Promise<void>; 
   addBalanceRequest: (formData: FormData) => Promise<void>;
-  updateBalanceRequestStatus: (
-    id: string,
-    status: 'approved' | 'rejected'
-  ) => Promise<void>;
+  updateBalanceRequestStatus: (id: string, status: 'approved' | 'rejected') => Promise<void>;
 }
 
 export const useBalanceRequestStore = create<BalanceRequestState>((set) => ({
@@ -166,6 +166,8 @@ export const useBalanceRequestStore = create<BalanceRequestState>((set) => ({
         userName: r.userName || 'Unknown',
         userEmail: r.userEmail || 'Unknown',
         amount: Number(r.amount),
+        // ✅ Map Currency
+        currency: r.currency || 'USD', 
         paymentMethod: r.paymentMethod,
         transactionId: r.transactionId,
         paymentScreenshot: r.paymentScreenshot,
@@ -187,6 +189,8 @@ export const useBalanceRequestStore = create<BalanceRequestState>((set) => ({
         id: r.id,
         userId: r.user_id,
         amount: Number(r.amount),
+        // ✅ Map Currency
+        currency: r.currency || 'USD', 
         paymentMethod: r.paymentMethod,
         transactionId: r.transactionId,
         paymentScreenshot: r.paymentScreenshot,
@@ -236,7 +240,7 @@ interface ProductState {
   isLoading: boolean;
   fetchProducts: () => Promise<void>;
   addProduct: (formData: FormData) => Promise<void>;
-  updateProduct: (id: string, updates: any) => Promise<void>; // ✅ Updated Signature
+  updateProduct: (id: string, updates: any) => Promise<void>; 
   deleteProduct: (id: string) => void;
 }
 
@@ -260,6 +264,7 @@ export const useProductStore = create<ProductState>((set) => ({
           '30_days': Number(p.price_30_days),
           'lifetime': Number(p.price_lifetime),
         },
+        currency_prices: p.currency_prices || {}, 
         softwareDownloadLink: p.download_link,
         tutorialVideoLink: p.tutorial_video_link,
         applyProcess: p.activation_process,
@@ -276,24 +281,17 @@ export const useProductStore = create<ProductState>((set) => ({
       await api.post('/products', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      // Refresh list handled by caller or we can auto-fetch
     } finally {
       set({ isLoading: false });
     }
   },
 
-  // ✅ FIXED: Calls API PUT request
   updateProduct: async (id, updates) => {
     set({ isLoading: true });
     try {
-      // Check if 'updates' is FormData (for files) or just JSON
       const isFormData = updates instanceof FormData;
       const headers = isFormData ? { 'Content-Type': 'multipart/form-data' } : {};
-
       await api.put(`/products/${id}`, updates, { headers });
-      
-      // We don't manually update local state here because the Admin Page 
-      // calls fetchProducts() immediately after this succeeds.
     } finally {
       set({ isLoading: false });
     }
@@ -313,10 +311,7 @@ interface OrderState {
   orders: Order[];
   isLoading: boolean;
   fetchOrders: (isAdmin?: boolean) => Promise<void>;
-  updateOrderStatus: (
-    id: string,
-    status: 'completed' | 'rejected'
-  ) => Promise<void>;
+  updateOrderStatus: (id: string, status: 'completed' | 'rejected') => Promise<void>;
   addOrder: (order: Order) => void;
 }
 
@@ -327,11 +322,8 @@ export const useOrderStore = create<OrderState>((set) => ({
   fetchOrders: async (isAdmin = false) => {
     set({ isLoading: true });
     try {
-      const endpoint = isAdmin
-        ? '/orders/admin/all'
-        : '/orders/my-orders';
+      const endpoint = isAdmin ? '/orders/admin/all' : '/orders/my-orders';
       const res = await api.get(endpoint);
-
       set({
         orders: res.data.data.map((o: any) => ({
           id: o.id,
@@ -347,6 +339,7 @@ export const useOrderStore = create<OrderState>((set) => ({
           completedAt: o.updated_at,
           licenseKey: o.licenses?.key || o.licenseKey || null, 
           softwareDownloadLink: o.products?.download_link,
+          currency: o.users?.currency || 'USD' 
         })),
       });
     } finally {
@@ -359,17 +352,14 @@ export const useOrderStore = create<OrderState>((set) => ({
     try {
       await api.patch(`/orders/${id}/status`, { status });
       set((state) => ({
-        orders: state.orders.map((o) =>
-          o.id === id ? { ...o, status } : o
-        ),
+        orders: state.orders.map((o) => o.id === id ? { ...o, status } : o),
       }));
     } finally {
       set({ isLoading: false });
     }
   },
 
-  addOrder: (order) =>
-    set((state) => ({ orders: [...state.orders, order] })),
+  addOrder: (order) => set((state) => ({ orders: [...state.orders, order] })),
 }));
 
 /* =======================
@@ -402,20 +392,29 @@ export const useCartStore = create<{
    HELPERS
 ======================= */
 
-export const generateLicenseKey = () =>
-  'KEY-' + Math.random().toString(36).substring(2, 11).toUpperCase();
+export const generateLicenseKey = () => 'KEY-' + Math.random().toString(36).substring(2, 11).toUpperCase();
 
-export const formatPlan = (plan: string) =>
-  ({
-    '1_day': '1 Day',
-    '7_days': '7 Days',
-    '30_days': '30 Days',
-    'lifetime': 'Lifetime',
-  }[plan] || plan);
+export const formatPlan = (plan: string) => ({ '1_day': '1 Day', '7_days': '7 Days', '30_days': '30 Days', 'lifetime': 'Lifetime' }[plan] || plan);
 
-export const formatDate = (date: string) =>
-  new Date(date).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+export const formatDate = (date: string) => new Date(date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+
+// ✅ Currency Formatting Helper
+export const formatPrice = (amount: number, currency: string = 'USD') => {
+  switch (currency) {
+    case 'PKR': return `Rs. ${amount.toLocaleString()}`;
+    case 'INR': return `₹ ${amount.toLocaleString()}`;
+    case 'BDT': return `৳ ${amount.toLocaleString()}`;
+    case 'GBP': return `£${amount.toFixed(2)}`;
+    default: return `$${amount.toFixed(2)}`;
+  }
+};
+
+// ✅ Price Selector Helper
+export const getProductPrice = (product: Product, plan: string, currency: string = 'USD'): number => {
+  if (currency === 'USD') return product.prices[plan as keyof PriceStructure] || 0;
+  if (product.currency_prices?.[currency as CurrencyType]?.[plan as keyof PriceStructure]) {
+    const local = product.currency_prices[currency as CurrencyType]![plan as keyof PriceStructure];
+    return local > 0 ? local : 0;
+  }
+  return 0;
+};

@@ -2,29 +2,20 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
-  Wallet, 
-  Check, 
-  X, 
-  Eye,
-  Clock,
-  CheckCircle,
-  XCircle
+  Wallet, Check, X, Eye, Clock, CheckCircle, XCircle
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
 import { 
   useAuthStore, 
   useBalanceRequestStore,
-  formatDate
+  formatDate,
+  formatPrice // ✅ IMPORTED helper
 } from '@/store';
 import { useToast } from '@/hooks/use-toast';
 
@@ -37,11 +28,7 @@ export default function AdminBalancePage() {
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
 
   useEffect(() => {
-    if (!isAuthenticated || user?.role !== 'admin') {
-      navigate('/login');
-      return;
-    }
-    // Fetch requests on load
+    if (!isAuthenticated || user?.role !== 'admin') { navigate('/login'); return; }
     fetchRequests();
   }, [isAuthenticated, user, navigate, fetchRequests]);
 
@@ -53,23 +40,11 @@ export default function AdminBalancePage() {
   });
 
   const handleApprove = async (requestId: string) => {
-    try {
-      await updateBalanceRequestStatus(requestId, 'approved');
-      toast({ title: 'Approved', description: 'Balance added to user account.' });
-      setSelectedRequest(null);
-    } catch (error) {
-      toast({ title: 'Error', description: 'Failed to approve.', variant: 'destructive' });
-    }
+    try { await updateBalanceRequestStatus(requestId, 'approved'); toast({ title: 'Approved', description: 'Balance added.' }); setSelectedRequest(null); } catch (error) { toast({ title: 'Error', description: 'Failed to approve.', variant: 'destructive' }); }
   };
 
   const handleReject = async (requestId: string) => {
-    try {
-      await updateBalanceRequestStatus(requestId, 'rejected');
-      toast({ title: 'Rejected', description: 'Request rejected.' });
-      setSelectedRequest(null);
-    } catch (error) {
-      toast({ title: 'Error', description: 'Failed to reject.', variant: 'destructive' });
-    }
+    try { await updateBalanceRequestStatus(requestId, 'rejected'); toast({ title: 'Rejected', description: 'Request rejected.' }); setSelectedRequest(null); } catch (error) { toast({ title: 'Error', description: 'Failed to reject.', variant: 'destructive' }); }
   };
 
   const selectedRequestData = balanceRequests.find(r => r.id === selectedRequest);
@@ -94,20 +69,12 @@ export default function AdminBalancePage() {
     <MainLayout>
       <div className="space-y-8">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-3">
-              <Wallet className="h-8 w-8 text-primary" />
-              Balance Requests
-            </h1>
-            <p className="text-muted-foreground mt-1">Manage user balance top-up requests</p>
-          </div>
+          <div><h1 className="text-3xl font-bold flex items-center gap-3"><Wallet className="h-8 w-8 text-primary" />Balance Requests</h1><p className="text-muted-foreground mt-1">Manage user balance top-up requests</p></div>
           <div className="flex items-center gap-2">
             {(['all', 'pending', 'approved', 'rejected'] as const).map((status) => (
               <Button key={status} variant={filter === status ? 'default' : 'outline'} size="sm" onClick={() => setFilter(status)}>
                 {status.charAt(0).toUpperCase() + status.slice(1)}
-                {status === 'pending' && stats.pending > 0 && (
-                  <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-primary-foreground text-primary text-xs">{stats.pending}</span>
-                )}
+                {status === 'pending' && stats.pending > 0 && <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-primary-foreground text-primary text-xs">{stats.pending}</span>}
               </Button>
             ))}
           </div>
@@ -143,7 +110,10 @@ export default function AdminBalancePage() {
                     {filteredRequests.map((request) => (
                       <motion.tr key={request.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="border-b border-border/50 hover:bg-secondary/30">
                         <td className="py-4 px-6"><div><p className="font-medium">{request.userName}</p><p className="text-xs text-muted-foreground">{request.userEmail}</p></div></td>
-                        <td className="py-4 px-6 font-bold text-primary">${request.amount.toFixed(2)}</td>
+                        
+                        {/* ✅ FIXED: Uses dynamic formatPrice with request.currency */}
+                        <td className="py-4 px-6 font-bold text-primary">{formatPrice(request.amount, request.currency)}</td>
+                        
                         <td className="py-4 px-6"><Badge variant="secondary">{request.paymentMethod.replace('_', ' ').toUpperCase()}</Badge></td>
                         <td className="py-4 px-6">{getStatusBadge(request.status)}</td>
                         <td className="py-4 px-6 text-muted-foreground">{formatDate(request.createdAt)}</td>
@@ -170,15 +140,15 @@ export default function AdminBalancePage() {
         {/* Modal */}
         <Dialog open={!!selectedRequest} onOpenChange={() => setSelectedRequest(null)}>
           <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Balance Request Details</DialogTitle>
-              <DialogDescription>Review transaction details.</DialogDescription>
-            </DialogHeader>
+            <DialogHeader><DialogTitle>Balance Request Details</DialogTitle><DialogDescription>Review transaction details.</DialogDescription></DialogHeader>
             {selectedRequestData && (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div><p className="text-muted-foreground">User</p><p className="font-medium">{selectedRequestData.userName}</p></div>
-                  <div><p className="text-muted-foreground">Amount</p><p className="font-bold text-primary">${selectedRequestData.amount.toFixed(2)}</p></div>
+                  
+                  {/* ✅ FIXED: Modal Amount also dynamic */}
+                  <div><p className="text-muted-foreground">Amount</p><p className="font-bold text-primary">{formatPrice(selectedRequestData.amount, selectedRequestData.currency)}</p></div>
+                  
                   <div><p className="text-muted-foreground">Method</p><p>{selectedRequestData.paymentMethod}</p></div>
                   <div><p className="text-muted-foreground">Transaction ID</p><code className="bg-secondary/50 px-2 py-1 rounded">{selectedRequestData.transactionId}</code></div>
                 </div>

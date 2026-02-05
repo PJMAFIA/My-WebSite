@@ -28,15 +28,45 @@ import {
 } from '@/store';
 import { useToast } from '@/hooks/use-toast';
 
-export default function UserDashboard() {
+// ✅ Exchange Rates (Static definitions for conversion)
+const exchangeRates: Record<string, number> = {
+  USD: 1,
+  GBP: 0.79, 
+  INR: 83.50,
+  PKR: 278.00,
+  BDT: 117.00
+};
+
+// ✅ Helper to get currency symbol
+const getSymbol = (curr: string) => {
+  switch(curr) {
+    case 'GBP': return '£';
+    case 'INR': return '₹';
+    case 'PKR': return 'Rs. ';
+    case 'BDT': return '৳';
+    default: return '$';
+  }
+};
+
+export default function Dashboard() {
   const navigate = useNavigate();
-  const { user, isAuthenticated, refreshUser } = useAuthStore();
+  // ✅ Get currency from global store (set by MainLayout dropdown)
+  const { user, isAuthenticated, refreshUser, currency } = useAuthStore() as any; 
   
   const { orders, fetchOrders, isLoading: ordersLoading } = useOrderStore();
   const { products, fetchProducts, isLoading: productsLoading } = useProductStore();
   
   const { toast } = useToast();
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  // ✅ Conversion Logic
+  const convertPrice = (amountInUsd: number) => {
+    const selectedCurrency = currency || 'USD';
+    const rate = exchangeRates[selectedCurrency] || 1;
+    const converted = Number(amountInUsd) * rate;
+    const symbol = getSymbol(selectedCurrency);
+    return `${symbol}${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
 
   const loadData = useCallback(async () => {
     if (!isAuthenticated) return;
@@ -101,7 +131,7 @@ export default function UserDashboard() {
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           
-          {/* 💰 Wallet Balance Card */}
+          {/* 💰 Wallet Balance Card (Converted) */}
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
             <Card variant="glass" className="border-primary/20 bg-primary/5">
               <CardContent className="p-6 flex items-center gap-4">
@@ -109,7 +139,8 @@ export default function UserDashboard() {
                   <Wallet className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">${user.balance?.toFixed(2) || '0.00'}</p>
+                  {/* ✅ Shows converted balance based on selected currency */}
+                  <p className="text-2xl font-bold">{convertPrice(user.balance || 0)}</p>
                   <p className="text-muted-foreground text-sm">Wallet Balance</p>
                 </div>
               </CardContent>
@@ -202,7 +233,6 @@ export default function UserDashboard() {
                                   <img 
                                     src={product.image} 
                                     alt={product.name} 
-                                    // 🔥 FIX: object-contain with padding
                                     className="w-full h-full object-contain p-1" 
                                   />
                                ) : (
@@ -291,7 +321,8 @@ export default function UserDashboard() {
                               </Badge>
                             </td>
                             <td className="py-3 px-4 text-muted-foreground">{formatDate(order.createdAt)}</td>
-                            <td className="py-3 px-4 font-medium">${order.price.toFixed(2)}</td>
+                            {/* ✅ Applied Currency Conversion to Amount */}
+                            <td className="py-3 px-4 font-medium">{convertPrice(order.price)}</td>
                           </tr>
                         );
                       })}

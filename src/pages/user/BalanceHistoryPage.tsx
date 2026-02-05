@@ -13,7 +13,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { useAuthStore, useBalanceRequestStore, formatDate } from '@/store';
+import { useAuthStore, useBalanceRequestStore, formatDate, formatPrice } from '@/store'; // ✅ Imported formatPrice
 
 export default function BalanceHistoryPage() {
   const navigate = useNavigate();
@@ -87,7 +87,10 @@ export default function BalanceHistoryPage() {
                         <td className="py-4 px-6"><code className="text-xs bg-secondary/50 px-2 py-1 rounded">{req.id.slice(0, 8)}...</code></td>
                         <td className="py-4 px-6 text-sm">{formatDate(req.createdAt)}</td>
                         <td className="py-4 px-6"><Badge variant="outline">{req.paymentMethod?.replace('_', ' ').toUpperCase()}</Badge></td>
-                        <td className="py-4 px-6 font-bold text-primary">${req.amount?.toFixed(2)}</td>
+                        
+                        {/* ✅ Fixed: Now uses dynamic currency formatting */}
+                        <td className="py-4 px-6 font-bold text-primary">{formatPrice(req.amount, req.currency)}</td>
+                        
                         <td className="py-4 px-6 text-right">{getStatusBadge(req.status)}</td>
                       </motion.tr>
                     ))}

@@ -12,12 +12,15 @@ import {
   User,
   Shield,
   Wallet,
-  Plus
+  Plus,
+  Globe // ✅ Added Icon
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuthStore, useBalanceRequestStore } from '@/store';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+// ✅ Select Imports
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface LayoutProps {
   children: ReactNode;
@@ -28,7 +31,7 @@ const userNavItems = [
   { path: '/shop', label: 'Shop', icon: ShoppingBag },
   { path: '/products', label: 'My Products', icon: Package },
   { path: '/orders', label: 'Order History', icon: History },
-  { path: '/balance-history', label: 'Balance History', icon: Wallet }, // 👈 Added
+  { path: '/balance-history', label: 'Balance History', icon: Wallet },
 ];
 
 const adminNavItems = [
@@ -39,26 +42,65 @@ const adminNavItems = [
   { path: '/admin/licenses', label: 'Licenses', icon: Shield },
 ];
 
+// ✅ Conversion Constants
+const exchangeRates: Record<string, number> = {
+  USD: 1, GBP: 0.79, INR: 83.50, PKR: 278.00, BDT: 117.00
+};
+
 export function MainLayout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout, isAuthenticated } = useAuthStore();
   
-  // To show 'pending' indicator, we can check store (optional as it requires fetch first)
+  // ✅ Get currency state
+  const { user, logout, isAuthenticated, currency, setCurrency } = useAuthStore() as any; 
   const { balanceRequests } = useBalanceRequestStore();
 
   const isAdmin = user?.role === 'admin';
   const navItems = isAdmin ? adminNavItems : userNavItems;
 
   const hasPendingBalance = !isAdmin && balanceRequests.some(
-    r => r.userId === user?.id && r.status === 'pending'
+    (r: any) => r.userId === user?.id && r.status === 'pending'
   );
 
   const handleLogout = () => {
     logout();
     navigate('/');
   };
+
+  // ✅ Helper: Format Price for UI
+  const formatPrice = (amount: number) => {
+    const selectedCurrency = currency || 'USD';
+    const rate = exchangeRates[selectedCurrency] || 1;
+    const converted = amount * rate;
+    
+    let symbol = '$';
+    if (selectedCurrency === 'GBP') symbol = '£';
+    if (selectedCurrency === 'INR') symbol = '₹';
+    if (selectedCurrency === 'PKR') symbol = 'Rs ';
+    if (selectedCurrency === 'BDT') symbol = '৳';
+
+    return `${symbol}${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  // ✅ Currency Component
+  const CurrencySelector = () => (
+    <div className="flex items-center gap-2 px-2">
+      <Globe className="h-4 w-4 text-muted-foreground" />
+      <Select value={currency || 'USD'} onValueChange={(v) => useAuthStore.setState({ currency: v } as any)}>
+        <SelectTrigger className="h-8 w-[80px] border-none shadow-none bg-transparent focus:ring-0 px-1 text-xs font-medium text-muted-foreground hover:text-foreground">
+          <SelectValue placeholder="USD" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="USD">USD</SelectItem>
+          <SelectItem value="GBP">GBP</SelectItem>
+          <SelectItem value="INR">INR</SelectItem>
+          <SelectItem value="PKR">PKR</SelectItem>
+          <SelectItem value="BDT">BDT</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-background">
@@ -75,10 +117,14 @@ export function MainLayout({ children }: LayoutProps) {
             <span className="font-bold text-lg">Universal Store</span>
           </Link>
           <div className="flex items-center gap-2">
+            {/* Currency on Mobile */}
+            <CurrencySelector />
+
             {isAuthenticated && !isAdmin && (
               <Button variant="outline" size="sm" className="flex items-center gap-2" onClick={() => navigate('/add-balance')}>
                 <Wallet className="h-4 w-4 text-primary" />
-                <span className="font-semibold">${user?.balance?.toFixed(2) || '0.00'}</span>
+                {/* ✅ Updated Balance Display */}
+                <span className="font-semibold">{formatPrice(user?.balance || 0)}</span>
                 <Plus className="h-3 w-3" />
               </Button>
             )}
@@ -116,45 +162,53 @@ export function MainLayout({ children }: LayoutProps) {
             })}
           </nav>
 
-          {isAuthenticated && user && !isAdmin && (
-            <div className="px-4 pb-2">
-              <Button variant="outline" className="w-full justify-between h-12 border-primary/30 hover:border-primary/50 hover:bg-primary/5" onClick={() => navigate('/add-balance')}>
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
-                    <Wallet className="h-4 w-4 text-primary" />
-                  </div>
-                  <div className="text-left">
-                    <p className="text-xs text-muted-foreground">Balance</p>
-                    <p className="font-bold text-primary">${user.balance?.toFixed(2) || '0.00'}</p>
-                  </div>
-                </div>
-                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground"><Plus className="h-3 w-3" /></div>
-              </Button>
-              {hasPendingBalance && (
-                <p className="text-xs text-yellow-500 mt-2 px-1 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse" />
-                  Payment pending approval
-                </p>
-              )}
+          <div className="p-4 border-t border-border/50 space-y-4">
+            {/* Currency Selector Desktop */}
+            <div className="bg-secondary/30 rounded-lg p-1">
+               <CurrencySelector />
             </div>
-          )}
 
-          {isAuthenticated && user && (
-            <div className="p-4 border-t border-border/50">
-              <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-secondary/50">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-                  <User className="h-5 w-5 text-primary-foreground" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm truncate">{user.name}</p>
-                  <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-                </div>
+            {isAuthenticated && user && !isAdmin && (
+              <div>
+                <Button variant="outline" className="w-full justify-between h-12 border-primary/30 hover:border-primary/50 hover:bg-primary/5" onClick={() => navigate('/add-balance')}>
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
+                      <Wallet className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-xs text-muted-foreground">Balance</p>
+                      {/* ✅ Updated Balance Display */}
+                      <p className="font-bold text-primary">{formatPrice(user.balance || 0)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground"><Plus className="h-3 w-3" /></div>
+                </Button>
+                {hasPendingBalance && (
+                  <p className="text-xs text-yellow-500 mt-2 px-1 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse" />
+                    Payment pending approval
+                  </p>
+                )}
               </div>
-              <Button variant="ghost" className="w-full mt-2 justify-start text-muted-foreground hover:text-destructive" onClick={handleLogout}>
-                <LogOut className="h-4 w-4 mr-2" /> Logout
-              </Button>
-            </div>
-          )}
+            )}
+
+            {isAuthenticated && user && (
+              <div>
+                <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-secondary/50">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+                    <User className="h-5 w-5 text-primary-foreground" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{user.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                  </div>
+                </div>
+                <Button variant="ghost" className="w-full mt-2 justify-start text-muted-foreground hover:text-destructive" onClick={handleLogout}>
+                  <LogOut className="h-4 w-4 mr-2" /> Logout
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
       </aside>
 
