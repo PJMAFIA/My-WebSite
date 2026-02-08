@@ -24,6 +24,7 @@ import AdminOrdersPage from "./pages/admin/AdminOrdersPage";
 import AdminBalancePage from "./pages/admin/AdminBalancePage";
 import AdminProductsPage from "./pages/admin/AdminProductsPage";
 import AdminLicensesPage from "./pages/admin/AdminLicensesPage";
+import AdminResetsPage from "./pages/admin/AdminResetsPage"; // ✅ Added Import
 
 const queryClient = new QueryClient();
 
@@ -133,6 +134,7 @@ const App = () => (
             <Route path="/admin/balance" element={<AdminBalancePage />} />
             <Route path="/admin/products" element={<AdminProductsPage />} />
             <Route path="/admin/licenses" element={<AdminLicensesPage />} />
+            <Route path="/admin/resets" element={<AdminResetsPage />} /> {/* ✅ Added Route */}
 
             {/* Catch-all */}
             <Route path="*" element={<NotFound />} />

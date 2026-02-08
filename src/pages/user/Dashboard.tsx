@@ -13,7 +13,8 @@ import {
   Clock,
   TrendingUp,
   Loader2,
-  Wallet
+  Wallet,
+  FileText // ✅ Added Icon
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -27,6 +28,8 @@ import {
   formatPlan 
 } from '@/store';
 import { useToast } from '@/hooks/use-toast';
+import { ResetRequestModal } from '@/components/ResetRequestModal';
+import api from '@/lib/api'; // ✅ Added API Import
 
 // ✅ Exchange Rates (Static definitions for conversion)
 const exchangeRates: Record<string, number> = {
@@ -58,6 +61,13 @@ export default function Dashboard() {
   
   const { toast } = useToast();
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  
+  // ✅ Reset Modal State
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [selectedOrderForReset, setSelectedOrderForReset] = useState<any>(null);
+
+  // ✅ NEW: Reset Requests State
+  const [resetRequests, setResetRequests] = useState<any[]>([]);
 
   // ✅ Conversion Logic
   const convertPrice = (amountInUsd: number) => {
@@ -75,7 +85,11 @@ export default function Dashboard() {
       await Promise.all([
         fetchOrders(), 
         fetchProducts(),
-        refreshUser()
+        refreshUser(),
+        // ✅ NEW: Fetch My Reset Requests
+        api.get('/resets/my-requests')
+           .then(res => setResetRequests(res.data.data))
+           .catch(err => console.error("Failed to fetch requests", err))
       ]);
     } catch (error) {
       console.error("❌ Dashboard fetch error:", error);
@@ -269,6 +283,10 @@ export default function Dashboard() {
                             <Button variant="ghost" size="sm" onClick={() => window.open(product.tutorialVideoLink, '_blank')}>
                               <PlayCircle className="h-4 w-4" />
                             </Button>
+                            {/* ✅ Reset Request Button */}
+                            <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setSelectedOrderForReset(order); setResetModalOpen(true); }}>
+                               <Key className="h-3 w-3 mr-1" /> Request Reset
+                            </Button>
                           </div>
                         </div>
                       </div>
@@ -291,7 +309,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               {isLoading && orders.length === 0 ? (
-                 <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>
+                  <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>
               ) : orders.length === 0 ? (
                 <div className="text-center py-12">
                   <p className="text-muted-foreground">No orders found.</p>
@@ -333,6 +351,59 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </motion.div>
+
+        {/* ✅ NEW: Reset Requests History Section */}
+        {resetRequests.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
+            <Card variant="glass">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-primary" />
+                  Reset Requests History
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border text-left text-muted-foreground">
+                        <th className="py-3 px-4">Product</th>
+                        <th className="py-3 px-4">Status</th>
+                        <th className="py-3 px-4">Admin Response</th>
+                        <th className="py-3 px-4">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {resetRequests.map((req) => (
+                        <tr key={req.id} className="border-b border-border/50 hover:bg-secondary/20">
+                          <td className="py-3 px-4 font-medium">{req.products?.name}</td>
+                          <td className="py-3 px-4">
+                            <Badge variant={req.status === 'pending' ? 'outline' : req.status === 'approved' ? 'default' : 'destructive'}>
+                              {req.status.toUpperCase()}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4 text-muted-foreground">{req.admin_response || '-'}</td>
+                          <td className="py-3 px-4 text-muted-foreground">{formatDate(req.created_at)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {/* ✅ Render the Reset Modal */}
+        {selectedOrderForReset && (
+          <ResetRequestModal 
+            isOpen={resetModalOpen}
+            onClose={() => setResetModalOpen(false)}
+            orderId={selectedOrderForReset.id}
+            productId={selectedOrderForReset.productId || selectedOrderForReset.product_id}
+            productName={getProduct(selectedOrderForReset.productId)?.name || 'Product'}
+          />
+        )}
       </div>
     </MainLayout>
   );

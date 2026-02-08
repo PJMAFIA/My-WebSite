@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -13,13 +13,12 @@ import {
   Shield,
   Wallet,
   Plus,
-  Globe // ✅ Added Icon
+  Globe,
+  Key // ✅ Added Icon
 } from 'lucide-react';
-import { useState } from 'react';
 import { useAuthStore, useBalanceRequestStore } from '@/store';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-// ✅ Select Imports
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface LayoutProps {
@@ -40,6 +39,7 @@ const adminNavItems = [
   { path: '/admin/balance', label: 'Balance Requests', icon: Wallet },
   { path: '/admin/products', label: 'Products', icon: Package },
   { path: '/admin/licenses', label: 'Licenses', icon: Shield },
+  { path: '/admin/resets', label: 'Reset Requests', icon: Key }, // ✅ Added Link to Sidebar
 ];
 
 // ✅ Conversion Constants
