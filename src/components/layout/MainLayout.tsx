@@ -6,15 +6,15 @@ import {
   ShoppingBag, 
   Package, 
   History, 
-  LogOut,
-  Menu,
-  X,
-  User,
-  Shield,
-  Wallet,
-  Plus,
-  Globe,
-  Key,
+  LogOut, 
+  Menu, 
+  X, 
+  User, 
+  Shield, 
+  Wallet, 
+  Plus, 
+  Globe, 
+  Key, 
   Tag 
 } from 'lucide-react';
 import { useAuthStore, useBalanceRequestStore } from '@/store';
@@ -44,7 +44,6 @@ const adminNavItems = [
   { path: '/admin/resets', label: 'Reset Requests', icon: Key }, 
 ];
 
-// Conversion Constants
 const exchangeRates: Record<string, number> = {
   USD: 1, GBP: 0.79, INR: 83.50, PKR: 278.00, BDT: 117.00
 };
@@ -106,12 +105,12 @@ export function MainLayout({ children }: LayoutProps) {
       <div className="fixed inset-0 bg-grid opacity-30 pointer-events-none" />
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-gradient-radial from-primary/10 via-transparent to-transparent pointer-events-none" />
       
-      {/* Mobile header */}
+      {/* 📱 Mobile Header (Fixed & Updated) */}
       <header className="lg:hidden fixed top-0 left-0 right-0 z-50 glass-card border-b border-border/50 px-4 py-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center w-full justify-between">
           
-          {/* ✅ LEFT: Menu Icon + Logo */}
-          <div className="flex items-center gap-3">
+          {/* ✅ LEFT SIDE: Menu Icon & Logo */}
+          <div className="flex items-center gap-3 shrink-0">
             <Button variant="ghost" size="icon" className="-ml-2" onClick={() => setSidebarOpen(!sidebarOpen)}>
               {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </Button>
@@ -120,22 +119,27 @@ export function MainLayout({ children }: LayoutProps) {
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
                 <span className="text-primary-foreground font-bold text-sm">S</span>
               </div>
-              <span className="font-bold text-lg">Universal Store</span>
+              {/* Hide text on very small screens if needed, otherwise show */}
+              <span className="font-bold text-lg hidden xs:inline-block">Universal Store</span>
             </Link>
           </div>
 
-          {/* ✅ RIGHT: Currency + Wallet */}
-          <div className="flex items-center gap-2">
-            <CurrencySelector />
+          {/* ✅ RIGHT SIDE: Scrollable Currency & Wallet (Slideable) */}
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pl-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+            <div className="shrink-0">
+               <CurrencySelector />
+            </div>
 
             {isAuthenticated && !isAdmin && (
-              <Button variant="outline" size="sm" className="flex items-center gap-2" onClick={() => navigate('/add-balance')}>
+              <Button variant="outline" size="sm" className="flex items-center gap-2 shrink-0" onClick={() => navigate('/add-balance')}>
                 <Wallet className="h-4 w-4 text-primary" />
-                <span className="font-semibold">{formatPrice(user?.balance || 0)}</span>
+                {/* whitespace-nowrap ensures amount doesn't break to new line */}
+                <span className="font-semibold whitespace-nowrap">{formatPrice(user?.balance || 0)}</span>
                 <Plus className="h-3 w-3" />
               </Button>
             )}
           </div>
+
         </div>
       </header>
 
