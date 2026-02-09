@@ -2,409 +2,238 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
-  Package, 
-  Key, 
-  Copy, 
-  Check, 
-  Download, 
-  PlayCircle,
-  RefreshCw,
-  ShoppingBag,
-  Clock,
-  TrendingUp,
-  Loader2,
-  Wallet,
-  FileText // ✅ Added Icon
+  Package, RefreshCw, ShoppingBag, Clock, TrendingUp, Wallet, ArrowRight, FileText, CheckCircle, XCircle 
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { 
-  useAuthStore, 
-  useOrderStore, 
-  useProductStore, 
-  formatDate, 
-  formatPlan 
-} from '@/store';
-import { useToast } from '@/hooks/use-toast';
-import { ResetRequestModal } from '@/components/ResetRequestModal';
-import api from '@/lib/api'; // ✅ Added API Import
+import { useAuthStore, useOrderStore, useProductStore, formatDate } from '@/store';
+import api from '@/lib/api';
 
-// ✅ Exchange Rates (Static definitions for conversion)
-const exchangeRates: Record<string, number> = {
-  USD: 1,
-  GBP: 0.79, 
-  INR: 83.50,
-  PKR: 278.00,
-  BDT: 117.00
-};
-
-// ✅ Helper to get currency symbol
-const getSymbol = (curr: string) => {
-  switch(curr) {
-    case 'GBP': return '£';
-    case 'INR': return '₹';
-    case 'PKR': return 'Rs. ';
-    case 'BDT': return '৳';
-    default: return '$';
-  }
-};
+// ✅ Exchange Rates
+const exchangeRates: Record<string, number> = { USD: 1, GBP: 0.79, INR: 83.50, PKR: 278.00, BDT: 117.00 };
+const getSymbol = (curr: string) => { switch(curr) { case 'GBP': return '£'; case 'INR': return '₹'; case 'PKR': return 'Rs. '; case 'BDT': return '৳'; default: return '$'; } };
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  // ✅ Get currency from global store (set by MainLayout dropdown)
   const { user, isAuthenticated, refreshUser, currency } = useAuthStore() as any; 
-  
-  const { orders, fetchOrders, isLoading: ordersLoading } = useOrderStore();
-  const { products, fetchProducts, isLoading: productsLoading } = useProductStore();
-  
-  const { toast } = useToast();
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  
-  // ✅ Reset Modal State
-  const [resetModalOpen, setResetModalOpen] = useState(false);
-  const [selectedOrderForReset, setSelectedOrderForReset] = useState<any>(null);
-
-  // ✅ NEW: Reset Requests State
+  const { orders, fetchOrders, isLoading } = useOrderStore();
+  const { products, fetchProducts } = useProductStore();
   const [resetRequests, setResetRequests] = useState<any[]>([]);
 
-  // ✅ Conversion Logic
+  // Helper: Convert Price
   const convertPrice = (amountInUsd: number) => {
     const selectedCurrency = currency || 'USD';
     const rate = exchangeRates[selectedCurrency] || 1;
-    const converted = Number(amountInUsd) * rate;
-    const symbol = getSymbol(selectedCurrency);
-    return `${symbol}${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `${getSymbol(selectedCurrency)}${(Number(amountInUsd) * rate).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
   };
+
+  // Helper: Get Product Details
+  const getProduct = (id: string) => products.find(p => p.id === id);
 
   const loadData = useCallback(async () => {
     if (!isAuthenticated) return;
     try {
-      console.log("🔄 Dashboard: Fetching fresh data...");
       await Promise.all([
         fetchOrders(), 
         fetchProducts(),
         refreshUser(),
-        // ✅ NEW: Fetch My Reset Requests
-        api.get('/resets/my-requests')
-           .then(res => setResetRequests(res.data.data))
-           .catch(err => console.error("Failed to fetch requests", err))
+        api.get('/resets/my-requests').then(res => setResetRequests(res.data.data)).catch(console.error)
       ]);
-    } catch (error) {
-      console.error("❌ Dashboard fetch error:", error);
-    }
+    } catch (error) { console.error(error); }
   }, [isAuthenticated, fetchOrders, fetchProducts, refreshUser]);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/login');
-      return;
-    }
+    if (!isAuthenticated) { navigate('/login'); return; }
     loadData();
   }, [isAuthenticated, navigate, loadData]);
 
   if (!user) return null;
 
-  const isLoading = ordersLoading || productsLoading;
-  const completedOrders = orders.filter(order => order.status === 'completed');
-  const pendingOrders = orders.filter(order => order.status === 'pending');
-
-  const copyToClipboard = (key: string) => {
-    navigator.clipboard.writeText(key);
-    setCopiedKey(key);
-    toast({ title: 'Copied!', description: 'License key copied to clipboard.' });
-    setTimeout(() => setCopiedKey(null), 2000);
-  };
-
-  const getProduct = (productId: string) => {
-    return products.find(p => p.id === productId);
-  };
+  // Filter Data for Widgets
+  const completedOrders = orders.filter(o => o.status === 'completed');
+  const pendingOrders = orders.filter(o => o.status === 'pending');
+  const recentOrders = orders.slice(0, 3); // Top 3
+  const recentResets = resetRequests.slice(0, 3); // Top 3
 
   return (
     <MainLayout>
       <div className="space-y-8">
-        {/* Header */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold">Welcome back, {user.name}!</h1>
-            <p className="text-muted-foreground">Here's an overview of your account.</p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={loadData} disabled={isLoading}>
-              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-            <Button onClick={() => navigate('/shop')} variant="gradient">
-              <ShoppingBag className="h-4 w-4 mr-2" />
-              Browse Shop
-            </Button>
-          </div>
+        
+        {/* 🌟 Rich Header Section */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-primary/10 via-primary/5 to-background border border-primary/10 p-8">
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div>
+                    <h1 className="text-3xl font-bold mb-2">Welcome back, {user.name}!</h1>
+                    <p className="text-muted-foreground max-w-xl">
+                        Here's your account overview. You have <span className="font-semibold text-foreground">{completedOrders.length} active products</span> and your current balance is <span className="font-semibold text-primary">{convertPrice(user.balance || 0)}</span>.
+                    </p>
+                </div>
+                <div className="flex gap-3">
+                    <Button variant="outline" onClick={loadData} disabled={isLoading} className="bg-background/50">
+                        <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} /> Sync
+                    </Button>
+                    <Button onClick={() => navigate('/add-balance')} variant="default" className="shadow-lg shadow-primary/20">
+                        <Wallet className="h-4 w-4 mr-2" /> Deposit
+                    </Button>
+                    <Button onClick={() => navigate('/shop')} variant="gradient" className="shadow-lg">
+                        <ShoppingBag className="h-4 w-4 mr-2" /> Shop
+                    </Button>
+                </div>
+            </div>
+            {/* Background Decoration */}
+            <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-primary/5 to-transparent pointer-events-none" />
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          
-          {/* 💰 Wallet Balance Card (Converted) */}
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-            <Card variant="glass" className="border-primary/20 bg-primary/5">
-              <CardContent className="p-6 flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
-                  <Wallet className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  {/* ✅ Shows converted balance based on selected currency */}
-                  <p className="text-2xl font-bold">{convertPrice(user.balance || 0)}</p>
-                  <p className="text-muted-foreground text-sm">Wallet Balance</p>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Active Products */}
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-            <Card variant="glass">
-              <CardContent className="p-6 flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-success/10 flex items-center justify-center">
-                  <Package className="h-6 w-6 text-success" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{completedOrders.length}</p>
-                  <p className="text-muted-foreground text-sm">Active Products</p>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Pending Orders */}
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            <Card variant="glass">
-              <CardContent className="p-6 flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-warning/10 flex items-center justify-center">
-                  <Clock className="h-6 w-6 text-warning" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{pendingOrders.length}</p>
-                  <p className="text-muted-foreground text-sm">Pending Orders</p>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Total Orders */}
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-            <Card variant="glass">
-              <CardContent className="p-6 flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-secondary/50 flex items-center justify-center">
-                  <TrendingUp className="h-6 w-6 text-muted-foreground" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{orders.length}</p>
-                  <p className="text-muted-foreground text-sm">Total Orders</p>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
+        {/* 📊 Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard icon={Wallet} label="Wallet Balance" value={convertPrice(user.balance || 0)} color="text-primary" bg="bg-primary/10" delay={0.05} />
+          <StatCard icon={Package} label="Active Products" value={completedOrders.length.toString()} color="text-success" bg="bg-success/10" delay={0.1} />
+          <StatCard icon={Clock} label="Pending Orders" value={pendingOrders.length.toString()} color="text-warning" bg="bg-warning/10" delay={0.2} />
+          <StatCard icon={TrendingUp} label="Total Orders" value={orders.length.toString()} color="text-muted-foreground" bg="bg-secondary/50" delay={0.3} />
         </div>
 
-        {/* Purchased Products List */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-          <Card variant="glass">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Package className="h-5 w-5 text-primary" />
-                Purchased Products
-              </CardTitle>
-              <CardDescription>Your active licenses and downloads</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoading && orders.length === 0 ? (
-                <div className="flex justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
-              ) : completedOrders.length === 0 ? (
-                <div className="text-center py-12">
-                  <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground mb-4">No active products found.</p>
-                  <Button variant="outline" onClick={() => navigate('/shop')}>Go to Shop</Button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {completedOrders.map((order) => {
-                    const product = getProduct(order.productId);
-                    if (!product) return null;
-
-                    const rawOrder = order as any;
-                    const actualLicenseKey = rawOrder.licenses?.key || rawOrder.licenseKey;
-
-                    return (
-                      <div key={order.id} className="p-4 rounded-xl bg-secondary/50 border border-border/50">
-                        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-                          {/* Product Info */}
-                          <div className="flex items-center gap-4 flex-1">
-                            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                               {product.image && product.image !== '/placeholder.svg' ? (
-                                  <img 
-                                    src={product.image} 
-                                    alt={product.name} 
-                                    className="w-full h-full object-contain p-1" 
-                                  />
-                               ) : (
-                                  <span className="text-xl font-bold text-primary">{product.name.charAt(0)}</span>
-                               )}
+        {/* 📦 Recent Activity Split View */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            
+            {/* Left: Recent Orders Widget */}
+            <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }}>
+                <Card className="h-full flex flex-col bg-card/50 border-border/50 shadow-sm">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-lg font-medium flex items-center gap-2">
+                            <ShoppingBag className="h-5 w-5 text-primary" /> Recent Orders
+                        </CardTitle>
+                        <Button variant="ghost" size="sm" className="text-xs h-8" onClick={() => navigate('/orders')}>View All</Button>
+                    </CardHeader>
+                    <CardContent className="flex-1">
+                        {recentOrders.length === 0 ? (
+                            <div className="h-full flex flex-col items-center justify-center text-center p-6 text-muted-foreground">
+                                <ShoppingBag className="h-10 w-10 mb-2 opacity-20" />
+                                <p className="text-sm">No orders yet.</p>
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <h3 className="font-semibold truncate">{product.name}</h3>
-                              <div className="flex items-center gap-2 mt-1">
-                                <Badge variant="active">Active</Badge>
-                                <span className="text-sm text-muted-foreground">{formatPlan(order.plan)}</span>
-                              </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {recentOrders.map((order) => {
+                                    const prod = getProduct(order.productId);
+                                    return (
+                                        <div key={order.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/20 border border-border/50 hover:bg-secondary/40 transition-colors">
+                                            <div className="flex items-center gap-3 overflow-hidden">
+                                                <div className="w-10 h-10 rounded-md bg-background flex items-center justify-center border border-border/50 shrink-0">
+                                                    {prod?.image ? <img src={prod.image} alt={prod.name} className="w-full h-full object-contain p-1" /> : <Package className="h-5 w-5 text-muted-foreground"/>}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="font-medium text-sm truncate">{prod?.name || 'Unknown Product'}</p>
+                                                    <p className="text-xs text-muted-foreground">{formatDate(order.createdAt)}</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right shrink-0">
+                                                <p className="font-bold text-sm">{convertPrice(order.price)}</p>
+                                                <Badge variant={order.status === 'completed' ? 'active' : 'outline'} className="text-[10px] px-1.5 h-5">{order.status}</Badge>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
-                          </div>
+                        )}
+                    </CardContent>
+                </Card>
+            </motion.div>
 
-                          {/* License Key */}
-                          <div className="flex-1">
-                            <p className="text-xs text-muted-foreground mb-1">License Key</p>
-                            <div className="flex items-center gap-2">
-                              <code className="flex-1 px-3 py-2 bg-background rounded-lg text-sm font-mono truncate">
-                                {actualLicenseKey || 'Processing...'}
-                              </code>
-                              <Button variant="ghost" size="icon" onClick={() => actualLicenseKey && copyToClipboard(actualLicenseKey)}>
-                                {copiedKey === actualLicenseKey ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
-                              </Button>
+            {/* Right: Recent Reset Requests Widget */}
+            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.5 }}>
+                <Card className="h-full flex flex-col bg-card/50 border-border/50 shadow-sm">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-lg font-medium flex items-center gap-2">
+                            <FileText className="h-5 w-5 text-primary" /> Support Requests
+                        </CardTitle>
+                        <Button variant="ghost" size="sm" className="text-xs h-8" onClick={() => navigate('/products')}>New Request</Button>
+                    </CardHeader>
+                    <CardContent className="flex-1">
+                        {recentResets.length === 0 ? (
+                            <div className="h-full flex flex-col items-center justify-center text-center p-6 text-muted-foreground">
+                                <CheckCircle className="h-10 w-10 mb-2 opacity-20" />
+                                <p className="text-sm">No pending requests.</p>
                             </div>
-                          </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {recentResets.map((req) => (
+                                    <div key={req.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/20 border border-border/50">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-md bg-background/50 flex items-center justify-center border border-border/50">
+                                                {req.status === 'approved' ? <CheckCircle className="h-5 w-5 text-green-500"/> : req.status === 'rejected' ? <XCircle className="h-5 w-5 text-red-500"/> : <Clock className="h-5 w-5 text-yellow-500"/>}
+                                            </div>
+                                            <div>
+                                                <p className="font-medium text-sm">Credential Reset</p>
+                                                <p className="text-xs text-muted-foreground truncate max-w-[150px]">{req.products?.name}</p>
+                                            </div>
+                                        </div>
+                                        <Badge variant={req.status === 'pending' ? 'outline' : req.status === 'approved' ? 'default' : 'destructive'} className="capitalize">{req.status}</Badge>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            </motion.div>
+        </div>
 
-                          {/* Actions */}
-                          <div className="flex items-center gap-2">
-                            <Button variant="outline" size="sm" onClick={() => window.open(order.softwareDownloadLink || product.softwareDownloadLink, '_blank')}>
-                              <Download className="h-4 w-4 mr-2" /> Download
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => window.open(product.tutorialVideoLink, '_blank')}>
-                              <PlayCircle className="h-4 w-4" />
-                            </Button>
-                            {/* ✅ Reset Request Button */}
-                            <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setSelectedOrderForReset(order); setResetModalOpen(true); }}>
-                               <Key className="h-3 w-3 mr-1" /> Request Reset
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Recent Orders History */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
-          <Card variant="glass">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-primary" />
-                Recent Orders
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoading && orders.length === 0 ? (
-                  <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>
-              ) : orders.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className="text-muted-foreground">No orders found.</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border text-left text-muted-foreground">
-                        <th className="py-3 px-4">Product</th>
-                        <th className="py-3 px-4">Plan</th>
-                        <th className="py-3 px-4">Status</th>
-                        <th className="py-3 px-4">Date</th>
-                        <th className="py-3 px-4">Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {orders.map((order) => {
-                        const product = getProduct(order.productId);
-                        return (
-                          <tr key={order.id} className="border-b border-border/50 hover:bg-secondary/20">
-                            <td className="py-3 px-4 font-medium">{product?.name || 'Loading...'}</td>
-                            <td className="py-3 px-4 text-muted-foreground">{formatPlan(order.plan)}</td>
-                            <td className="py-3 px-4">
-                              <Badge variant={order.status as any}>
-                                {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                              </Badge>
-                            </td>
-                            <td className="py-3 px-4 text-muted-foreground">{formatDate(order.createdAt)}</td>
-                            {/* ✅ Applied Currency Conversion to Amount */}
-                            <td className="py-3 px-4 font-medium">{convertPrice(order.price)}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* ✅ NEW: Reset Requests History Section */}
-        {resetRequests.length > 0 && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
-            <Card variant="glass">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-primary" />
-                  Reset Requests History
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border text-left text-muted-foreground">
-                        <th className="py-3 px-4">Product</th>
-                        <th className="py-3 px-4">Status</th>
-                        <th className="py-3 px-4">Admin Response</th>
-                        <th className="py-3 px-4">Date</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {resetRequests.map((req) => (
-                        <tr key={req.id} className="border-b border-border/50 hover:bg-secondary/20">
-                          <td className="py-3 px-4 font-medium">{req.products?.name}</td>
-                          <td className="py-3 px-4">
-                            <Badge variant={req.status === 'pending' ? 'outline' : req.status === 'approved' ? 'default' : 'destructive'}>
-                              {req.status.toUpperCase()}
-                            </Badge>
-                          </td>
-                          <td className="py-3 px-4 text-muted-foreground">{req.admin_response || '-'}</td>
-                          <td className="py-3 px-4 text-muted-foreground">{formatDate(req.created_at)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
-
-        {/* ✅ Render the Reset Modal */}
-        {selectedOrderForReset && (
-          <ResetRequestModal 
-            isOpen={resetModalOpen}
-            onClose={() => setResetModalOpen(false)}
-            orderId={selectedOrderForReset.id}
-            productId={selectedOrderForReset.productId || selectedOrderForReset.product_id}
-            productName={getProduct(selectedOrderForReset.productId)?.name || 'Product'}
-          />
-        )}
+        {/* 🚀 Quick Navigation Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+           <NavCard 
+             title="My Products" 
+             desc="Access downloads & licenses" 
+             icon={Package} 
+             onClick={() => navigate('/products')} 
+             delay={0.6}
+           />
+           <NavCard 
+             title="Order History" 
+             desc="View invoices & transactions" 
+             icon={Clock} 
+             onClick={() => navigate('/orders')} 
+             delay={0.7}
+           />
+           <NavCard 
+             title="Add Funds" 
+             desc="Top up your wallet instantly" 
+             icon={Wallet} 
+             onClick={() => navigate('/add-balance')} 
+             delay={0.8}
+           />
+        </div>
       </div>
     </MainLayout>
   );
 }
+
+// 🎨 Sub-components
+const StatCard = ({ icon: Icon, label, value, color, bg, delay }: any) => (
+  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }}>
+    <Card className="hover:shadow-md transition-shadow border-border/50">
+      <CardContent className="p-5 flex items-center gap-4">
+        <div className={`w-12 h-12 rounded-xl ${bg} flex items-center justify-center shrink-0`}><Icon className={`h-6 w-6 ${color}`} /></div>
+        <div><p className="text-2xl font-bold tracking-tight">{value}</p><p className="text-sm text-muted-foreground font-medium">{label}</p></div>
+      </CardContent>
+    </Card>
+  </motion.div>
+);
+
+const NavCard = ({ title, desc, icon: Icon, onClick, delay }: any) => (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }} className="cursor-pointer group" onClick={onClick}>
+        <Card className="h-full bg-gradient-to-br from-card to-background hover:border-primary/50 transition-all">
+            <CardContent className="p-6 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center group-hover:bg-primary/10 transition-colors">
+                        <Icon className="h-6 w-6 text-muted-foreground group-hover:text-primary transition-colors" />
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-lg">{title}</h3>
+                        <p className="text-sm text-muted-foreground">{desc}</p>
+                    </div>
+                </div>
+                <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-transform" />
+            </CardContent>
+        </Card>
+    </motion.div>
+);
