@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShoppingBag, Search, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ShoppingBag, Search, Loader2, ChevronLeft, ChevronRight, Globe } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useProductStore, useCartStore, useAuthStore, formatPlan } from '@/store';
 
 type PlanType = '1_day' | '7_days' | '30_days' | 'lifetime';
+type CurrencyType = 'USD' | 'GBP' | 'INR' | 'PKR' | 'BDT';
 
 // --- 🌟 Dedicated Slider Component ---
 const ProductImageSlider = ({ images, name }: { images: string[]; name: string }) => {
@@ -69,12 +70,12 @@ export default function ShopPage() {
   const navigate = useNavigate();
   const { products, fetchProducts, isLoading } = useProductStore();
   const { setCart } = useCartStore();
-  
-  // ✅ Use Global Currency from Auth Store (Controlled by MainLayout)
-  const { isAuthenticated, currency } = useAuthStore() as any; 
-  
+  const { isAuthenticated } = useAuthStore();
   const [search, setSearch] = useState('');
   const [selectedPlans, setSelectedPlans] = useState<Record<string, PlanType>>({});
+  
+  // ✅ Currency State (Default USD)
+  const [currency, setCurrency] = useState<CurrencyType>('USD');
 
   useEffect(() => {
     fetchProducts();
@@ -104,8 +105,7 @@ export default function ShopPage() {
 
   // ✅ Helper: Format Price Symbol
   const formatPrice = (price: number) => {
-    const currentCurrency = currency || 'USD'; // Default to USD
-    switch (currentCurrency) {
+    switch (currency) {
       case 'GBP': return `£${price.toFixed(2)}`;
       case 'INR': return `₹${price.toLocaleString()}`;
       case 'PKR': return `Rs. ${price.toLocaleString()}`;
@@ -116,15 +116,13 @@ export default function ShopPage() {
 
   // ✅ Helper: Get Correct Price from Product Data
   const getPrice = (product: any, plan: string): number => {
-    const currentCurrency = currency || 'USD';
-
     // If USD, return base prices
-    if (currentCurrency === 'USD') {
+    if (currency === 'USD') {
         return product.prices[plan] || 0;
     }
     // For other currencies, check currency_prices object
-    if (product.currency_prices?.[currentCurrency]?.[plan]) {
-        return product.currency_prices[currentCurrency][plan];
+    if (product.currency_prices?.[currency]?.[plan]) {
+        return product.currency_prices[currency][plan];
     }
     return 0; // Return 0 if price not defined for that currency
   };
@@ -140,7 +138,23 @@ export default function ShopPage() {
             </h1>
             <p className="text-muted-foreground mt-1">Browse our collection of premium software products</p>
           </div>
-          {/* ❌ Removed Local Currency Dropdown - Now using MainLayout's global one */}
+
+          {/* ✅ Currency Dropdown */}
+          <div className="flex items-center gap-2 bg-secondary/20 p-1 rounded-lg border border-border">
+            <Globe className="h-4 w-4 text-muted-foreground ml-2" />
+            <Select value={currency} onValueChange={(v: CurrencyType) => setCurrency(v)}>
+                <SelectTrigger className="w-[110px] border-none shadow-none bg-transparent h-8 focus:ring-0">
+                    <SelectValue placeholder="Currency" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="USD">USD ($)</SelectItem>
+                    <SelectItem value="GBP">GBP (£)</SelectItem>
+                    <SelectItem value="INR">INR (₹)</SelectItem>
+                    <SelectItem value="PKR">PKR (Rs)</SelectItem>
+                    <SelectItem value="BDT">BDT (৳)</SelectItem>
+                </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* Search */}
@@ -179,11 +193,8 @@ export default function ShopPage() {
                             <SelectContent>
                                 {['1_day', '7_days', '30_days', 'lifetime'].map(plan => {
                                     const pPrice = getPrice(product, plan);
-                                    
-                                    // Logic: Hide plan if price is 0 AND not USD. (Always show USD 0 if explicitly set, but usually 0 means unavailable)
-                                    // You can adjust this logic if you want to show "Unavailable" instead of hiding
+                                    // Hide if price is 0 (not set) AND not USD. (Always show USD 0 if set)
                                     if(pPrice === 0 && currency !== 'USD') return null;
-
                                     return (
                                         <SelectItem key={plan} value={plan}>{formatPlan(plan)} - {formatPrice(pPrice)}</SelectItem>
                                     )

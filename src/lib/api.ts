@@ -5,7 +5,7 @@ import { useAuthStore } from '@/store';
 // If the app is built for production (Vercel), use Render.
 // If running locally (npm run dev), use Localhost.
 const BASE_URL = import.meta.env.PROD 
-  ? 'https://websitebackend-ekfo.onrender.com/api'  // ☁️ Your Live Backend
+  ? 'https://websitebackend-1-aone.onrender.com'  // ☁️ Your Live Backend
   : 'http://localhost:5000/api';                    // 🏠 Your Local Backend
 
 const api = axios.create({
