@@ -148,9 +148,7 @@ export function MainLayout({ children }: LayoutProps) {
         <div className="flex flex-col h-full">
           <div className="p-6 border-b border-border/50">
             <Link to="/" className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center glow">
-                <span className="text-primary-foreground font-bold">S</span>
-              </div>
+             <img src="/logo.png" alt="Logo" className="w-10 h-10 rounded-xl object-contain" />
               <div>
                 <span className="font-bold text-lg">Universal Store</span>
                 {isAdmin && <span className="block text-xs text-primary">Admin Panel</span>}
@@ -239,9 +237,7 @@ export function AuthLayout({ children }: LayoutProps) {
         <div className="absolute inset-0 noise" />
         <div className="relative z-10 flex flex-col justify-center p-12 xl:p-16">
           <Link to="/" className="flex items-center gap-3 mb-12">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center glow">
-              <span className="text-primary-foreground font-bold text-xl">S</span>
-            </div>
+            <img src="/logo.png" alt="Logo" className="w-8 h-8 rounded-lg object-contain" />
             <span className="font-bold text-2xl">Universal Store</span>
           </Link>
           <h1 className="text-4xl xl:text-5xl font-bold mb-6 leading-tight">Premium Software <br /><span className="text-gradient">Licensing Platform</span></h1>

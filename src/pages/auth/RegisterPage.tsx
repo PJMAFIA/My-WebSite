@@ -142,11 +142,9 @@ export default function RegisterPage() {
     <AuthLayout>
       <Card variant="glass" className="border-border/50">
         <CardHeader className="text-center">
-          <Link to="/" className="lg:hidden flex items-center justify-center gap-2 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-              <span className="text-primary-foreground font-bold">S</span>
-            </div>
-          </Link>
+       <Link to="/" className="lg:hidden flex items-center justify-center gap-2 mb-4">
+  <img src="/logo.png" alt="Logo" className="w-12 h-12 rounded-xl object-contain" />
+</Link>
           <CardTitle className="text-2xl">
             {step === 1 ? 'Create an account' : 'Verify Email'}
           </CardTitle>
