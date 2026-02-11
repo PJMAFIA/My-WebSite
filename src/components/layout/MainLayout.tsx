@@ -116,9 +116,7 @@ export function MainLayout({ children }: LayoutProps) {
             </Button>
             
             <Link to="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-sm">S</span>
-              </div>
+             <img src="/logo.png" alt="Logo" className="w-8 h-8 rounded-lg object-contain" />
               {/* Hide text on very small screens if needed, otherwise show */}
               <span className="font-bold text-lg hidden xs:inline-block">Universal Store</span>
             </Link>
