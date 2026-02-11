@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase";
 import api from "@/lib/api";
 import { Loader2 } from "lucide-react";
 
+
 // Pages
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
@@ -31,7 +32,8 @@ import AdminBalancePage from "./pages/admin/AdminBalancePage";
 import AdminProductsPage from "./pages/admin/AdminProductsPage";
 import AdminLicensesPage from "./pages/admin/AdminLicensesPage";
 import AdminResetsPage from "./pages/admin/AdminResetsPage";
-import AdminPromosPage from "./pages/admin/AdminPromosPage"; // ✅ Added Import
+import AdminPromosPage from "./pages/admin/AdminPromosPage";
+import AdminAnnouncementPage from "./pages/admin/AdminAnnouncementPage"; // ✅ NEW PAGE IMPORT
 
 const queryClient = new QueryClient();
 
@@ -77,39 +79,42 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthWrapper>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/shop" element={<ShopPage />} />
+    
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthWrapper>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/shop" element={<ShopPage />} />
 
-            {/* User Routes */}
-            <Route path="/dashboard" element={<UserDashboard />} />
-            <Route path="/products" element={<MyProductsPage />} />
-            <Route path="/orders" element={<OrderHistoryPage />} />
-            <Route path="/add-balance" element={<AddBalancePage />} />
-            <Route path="/balance-history" element={<BalanceHistoryPage />} />
-            <Route path="/checkout" element={<CheckoutPage />} />
+              {/* User Routes */}
+              <Route path="/dashboard" element={<UserDashboard />} />
+              <Route path="/products" element={<MyProductsPage />} />
+              <Route path="/orders" element={<OrderHistoryPage />} />
+              <Route path="/add-balance" element={<AddBalancePage />} />
+              <Route path="/balance-history" element={<BalanceHistoryPage />} />
+              <Route path="/checkout" element={<CheckoutPage />} />
 
-            {/* Admin Routes */}
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/admin/orders" element={<AdminOrdersPage />} />
-            <Route path="/admin/balance" element={<AdminBalancePage />} />
-            <Route path="/admin/products" element={<AdminProductsPage />} />
-            <Route path="/admin/licenses" element={<AdminLicensesPage />} />
-            <Route path="/admin/resets" element={<AdminResetsPage />} />
-            <Route path="/admin/promos" element={<AdminPromosPage />} /> {/* ✅ Added Route */}
+              {/* Admin Routes */}
+              <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/admin/orders" element={<AdminOrdersPage />} />
+              <Route path="/admin/balance" element={<AdminBalancePage />} />
+              <Route path="/admin/products" element={<AdminProductsPage />} />
+              <Route path="/admin/licenses" element={<AdminLicensesPage />} />
+              <Route path="/admin/resets" element={<AdminResetsPage />} />
+              <Route path="/admin/promos" element={<AdminPromosPage />} />
+              <Route path="/admin/announcement" element={<AdminAnnouncementPage />} /> {/* ✅ NEW ROUTE */}
 
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </AuthWrapper>
-      </BrowserRouter>
-    </TooltipProvider>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </AuthWrapper>
+        </BrowserRouter>
+      </TooltipProvider>
+   
   </QueryClientProvider>
 );
 
