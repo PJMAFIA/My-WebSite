@@ -2,29 +2,54 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
-  Package, RefreshCw, ShoppingBag, Clock, TrendingUp, Wallet, ArrowRight, FileText, CheckCircle, XCircle 
+  Package, RefreshCw, ShoppingBag, Clock, TrendingUp, Wallet, ArrowRight, FileText, CheckCircle, XCircle, Hourglass 
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { useAuthStore, useOrderStore, useProductStore, formatDate } from '@/store';
+import { useAuthStore, useOrderStore, useProductStore, useBalanceRequestStore, formatDate } from '@/store';
+import { supabase } from '@/lib/supabase';
 import api from '@/lib/api';
 
-// ✅ Exchange Rates
-const exchangeRates: Record<string, number> = { USD: 1, GBP: 0.79, INR: 83.50, PKR: 278.00, BDT: 117.00 };
-const getSymbol = (curr: string) => { switch(curr) { case 'GBP': return '£'; case 'INR': return '₹'; case 'PKR': return 'Rs. '; case 'BDT': return '৳'; default: return '$'; } };
+// ✅ Exchange Rates (Synced with MainLayout)
+const exchangeRates: Record<string, number> = { 
+  USD: 1, 
+  GBP: 0.79, 
+  INR: 83.50, 
+  PKR: 278.00, 
+  BDT: 117.00, 
+  NPR: 133.00 // ✅ Added NPR
+};
+
+const getSymbol = (curr: string) => { 
+  switch(curr) { 
+    case 'GBP': return '£'; 
+    case 'INR': return '₹'; 
+    case 'PKR': return 'Rs. '; 
+    case 'BDT': return '৳'; 
+    case 'NPR': return 'Rs. '; // ✅ Added NPR
+    default: return '$'; 
+  } 
+};
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { user, isAuthenticated, refreshUser, currency } = useAuthStore() as any; 
+  
+  // ✅ Get 'currentCurrency' (Global State from MainLayout)
+  const { user, isAuthenticated, refreshUser, currentCurrency } = useAuthStore() as any; 
+  
   const { orders, fetchOrders, isLoading } = useOrderStore();
   const { products, fetchProducts } = useProductStore();
+  
+  // ✅ Get Pending Balance and Requests
+  const { fetchUserRequests, pendingAmount, balanceRequests } = useBalanceRequestStore(); 
   const [resetRequests, setResetRequests] = useState<any[]>([]);
 
-  // Helper: Convert Price
+  // ✅ Currency Conversion Logic
+  // Prioritizes: Dropdown Selection (currentCurrency) -> User DB Preference -> Default USD
   const convertPrice = (amountInUsd: number) => {
-    const selectedCurrency = currency || 'USD';
+    const selectedCurrency = currentCurrency || user?.currency || 'USD'; 
     const rate = exchangeRates[selectedCurrency] || 1;
     return `${getSymbol(selectedCurrency)}${(Number(amountInUsd) * rate).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
   };
@@ -39,10 +64,27 @@ export default function Dashboard() {
         fetchOrders(), 
         fetchProducts(),
         refreshUser(),
+        fetchUserRequests(), // ✅ Fetch Balance Requests
         api.get('/resets/my-requests').then(res => setResetRequests(res.data.data)).catch(console.error)
       ]);
     } catch (error) { console.error(error); }
-  }, [isAuthenticated, fetchOrders, fetchProducts, refreshUser]);
+  }, [isAuthenticated, fetchOrders, fetchProducts, refreshUser, fetchUserRequests]);
+
+  // ✅ REAL-TIME SUBSCRIPTION
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase.channel('realtime-dashboard')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users', filter: `id=eq.${user.id}` }, () => {
+         refreshUser(); // Balance Updated!
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'balance_requests', filter: `user_id=eq.${user.id}` }, () => {
+         fetchUserRequests(); // Status Updated!
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user, refreshUser, fetchUserRequests]);
 
   useEffect(() => {
     if (!isAuthenticated) { navigate('/login'); return; }
@@ -54,8 +96,9 @@ export default function Dashboard() {
   // Filter Data for Widgets
   const completedOrders = orders.filter(o => o.status === 'completed');
   const pendingOrders = orders.filter(o => o.status === 'pending');
-  const recentOrders = orders.slice(0, 3); // Top 3
-  const recentResets = resetRequests.slice(0, 3); // Top 3
+  const recentOrders = orders.slice(0, 3);
+  const recentResets = resetRequests.slice(0, 3);
+  const latestBalanceRequest = balanceRequests[0]; // Most recent request
 
   return (
     <MainLayout>
@@ -67,11 +110,11 @@ export default function Dashboard() {
                 <div>
                     <h1 className="text-3xl font-bold mb-2">Welcome back, {user.name}!</h1>
                     <p className="text-muted-foreground max-w-xl">
-                        Here's your account overview. You have <span className="font-semibold text-foreground">{completedOrders.length} active products</span> and your current balance is <span className="font-semibold text-primary">{convertPrice(user.balance || 0)}</span>.
+                        Here's your account overview. You have <span className="font-semibold text-foreground">{completedOrders.length} active products</span>.
                     </p>
                 </div>
                 <div className="flex gap-3">
-                    <Button variant="outline" onClick={loadData} disabled={isLoading} className="bg-background/50">
+                    <Button variant="outline" onClick={loadData} disabled={isLoading} className="bg-background/50 backdrop-blur-sm">
                         <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} /> Sync
                     </Button>
                     <Button onClick={() => navigate('/add-balance')} variant="default" className="shadow-lg shadow-primary/20">
@@ -82,24 +125,55 @@ export default function Dashboard() {
                     </Button>
                 </div>
             </div>
-            {/* Background Decoration */}
             <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-primary/5 to-transparent pointer-events-none" />
         </div>
 
         {/* 📊 Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard icon={Wallet} label="Wallet Balance" value={convertPrice(user.balance || 0)} color="text-primary" bg="bg-primary/10" delay={0.05} />
-          <StatCard icon={Package} label="Active Products" value={completedOrders.length.toString()} color="text-success" bg="bg-success/10" delay={0.1} />
-          <StatCard icon={Clock} label="Pending Orders" value={pendingOrders.length.toString()} color="text-warning" bg="bg-warning/10" delay={0.2} />
-          <StatCard icon={TrendingUp} label="Total Orders" value={orders.length.toString()} color="text-muted-foreground" bg="bg-secondary/50" delay={0.3} />
+          {/* ✅ Pending Funds Widget */}
+          <StatCard icon={Hourglass} label="Pending Funds" value={convertPrice(pendingAmount || 0)} color="text-yellow-500" bg="bg-yellow-500/10" delay={0.1} />
+          <StatCard icon={Package} label="Active Products" value={completedOrders.length.toString()} color="text-green-500" bg="bg-green-500/10" delay={0.15} />
+          <StatCard icon={Clock} label="Pending Orders" value={pendingOrders.length.toString()} color="text-orange-500" bg="bg-orange-500/10" delay={0.2} />
         </div>
+
+        {/* 🔄 LIVE TRANSACTION TRACKER (Improved Glass UI) */}
+        {latestBalanceRequest && latestBalanceRequest.status === 'pending' && (
+           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+             <Card className="bg-card/60 backdrop-blur-md border-primary/20 shadow-sm">
+               <CardContent className="p-6">
+                 <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                   <div className="flex items-center gap-4">
+                     <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center animate-pulse">
+                       <RefreshCw className="h-6 w-6 text-primary animate-spin" />
+                     </div>
+                     <div>
+                       <h3 className="font-bold text-lg text-foreground">Processing Deposit</h3>
+                       <p className="text-sm text-muted-foreground">ID: <span className="font-mono text-primary">{latestBalanceRequest.transactionId}</span> • <span className="font-semibold text-foreground">{convertPrice(latestBalanceRequest.amount)}</span></p>
+                     </div>
+                   </div>
+                   <div className="flex items-center gap-2 w-full md:w-auto">
+                     {/* Stepper */}
+                     <div className="flex items-center gap-2 text-sm">
+                       <span className="flex items-center gap-1 text-muted-foreground font-medium"><CheckCircle className="h-4 w-4 text-green-500" /> Submitted</span>
+                       <div className="w-8 h-px bg-border"></div>
+                       <span className="flex items-center gap-1 text-primary font-bold bg-primary/10 px-3 py-1 rounded-full animate-pulse"><Clock className="h-3 w-3" /> Reviewing</span>
+                       <div className="w-8 h-px bg-border"></div>
+                       <span className="text-muted-foreground/50">Approved</span>
+                     </div>
+                   </div>
+                 </div>
+               </CardContent>
+             </Card>
+           </motion.div>
+        )}
 
         {/* 📦 Recent Activity Split View */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
             {/* Left: Recent Orders Widget */}
             <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }}>
-                <Card className="h-full flex flex-col bg-card/50 border-border/50 shadow-sm">
+                <Card className="h-full flex flex-col bg-card/50 border-border/50 shadow-sm backdrop-blur-sm">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-lg font-medium flex items-center gap-2">
                             <ShoppingBag className="h-5 w-5 text-primary" /> Recent Orders
@@ -117,7 +191,7 @@ export default function Dashboard() {
                                 {recentOrders.map((order) => {
                                     const prod = getProduct(order.productId);
                                     return (
-                                        <div key={order.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/20 border border-border/50 hover:bg-secondary/40 transition-colors">
+                                        <div key={order.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 border border-border/50 hover:bg-secondary/50 transition-colors">
                                             <div className="flex items-center gap-3 overflow-hidden">
                                                 <div className="w-10 h-10 rounded-md bg-background flex items-center justify-center border border-border/50 shrink-0">
                                                     {prod?.image ? <img src={prod.image} alt={prod.name} className="w-full h-full object-contain p-1" /> : <Package className="h-5 w-5 text-muted-foreground"/>}
@@ -128,6 +202,7 @@ export default function Dashboard() {
                                                 </div>
                                             </div>
                                             <div className="text-right shrink-0">
+                                                {/* ✅ Use convertPrice for orders too */}
                                                 <p className="font-bold text-sm">{convertPrice(order.price)}</p>
                                                 <Badge variant={order.status === 'completed' ? 'active' : 'outline'} className="text-[10px] px-1.5 h-5">{order.status}</Badge>
                                             </div>
@@ -142,7 +217,7 @@ export default function Dashboard() {
 
             {/* Right: Recent Reset Requests Widget */}
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.5 }}>
-                <Card className="h-full flex flex-col bg-card/50 border-border/50 shadow-sm">
+                <Card className="h-full flex flex-col bg-card/50 border-border/50 shadow-sm backdrop-blur-sm">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-lg font-medium flex items-center gap-2">
                             <FileText className="h-5 w-5 text-primary" /> Support Requests
@@ -158,7 +233,7 @@ export default function Dashboard() {
                         ) : (
                             <div className="space-y-3">
                                 {recentResets.map((req) => (
-                                    <div key={req.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/20 border border-border/50">
+                                    <div key={req.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 border border-border/50 hover:bg-secondary/50 transition-colors">
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 rounded-md bg-background/50 flex items-center justify-center border border-border/50">
                                                 {req.status === 'approved' ? <CheckCircle className="h-5 w-5 text-green-500"/> : req.status === 'rejected' ? <XCircle className="h-5 w-5 text-red-500"/> : <Clock className="h-5 w-5 text-yellow-500"/>}
@@ -180,37 +255,19 @@ export default function Dashboard() {
 
         {/* 🚀 Quick Navigation Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-           <NavCard 
-             title="My Products" 
-             desc="Access downloads & licenses" 
-             icon={Package} 
-             onClick={() => navigate('/products')} 
-             delay={0.6}
-           />
-           <NavCard 
-             title="Order History" 
-             desc="View invoices & transactions" 
-             icon={Clock} 
-             onClick={() => navigate('/orders')} 
-             delay={0.7}
-           />
-           <NavCard 
-             title="Add Funds" 
-             desc="Top up your wallet instantly" 
-             icon={Wallet} 
-             onClick={() => navigate('/add-balance')} 
-             delay={0.8}
-           />
+           <NavCard title="My Products" desc="Access downloads & licenses" icon={Package} onClick={() => navigate('/products')} delay={0.6}/>
+           <NavCard title="Order History" desc="View invoices & transactions" icon={Clock} onClick={() => navigate('/orders')} delay={0.7}/>
+           <NavCard title="Add Funds" desc="Top up your wallet instantly" icon={Wallet} onClick={() => navigate('/add-balance')} delay={0.8}/>
         </div>
       </div>
     </MainLayout>
   );
 }
 
-// 🎨 Sub-components
+// 🎨 Sub-components (Styled for Glass UI)
 const StatCard = ({ icon: Icon, label, value, color, bg, delay }: any) => (
   <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }}>
-    <Card className="hover:shadow-md transition-shadow border-border/50">
+    <Card className="hover:shadow-md transition-shadow border-border/50 bg-card/50 backdrop-blur-sm">
       <CardContent className="p-5 flex items-center gap-4">
         <div className={`w-12 h-12 rounded-xl ${bg} flex items-center justify-center shrink-0`}><Icon className={`h-6 w-6 ${color}`} /></div>
         <div><p className="text-2xl font-bold tracking-tight">{value}</p><p className="text-sm text-muted-foreground font-medium">{label}</p></div>
@@ -221,7 +278,7 @@ const StatCard = ({ icon: Icon, label, value, color, bg, delay }: any) => (
 
 const NavCard = ({ title, desc, icon: Icon, onClick, delay }: any) => (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }} className="cursor-pointer group" onClick={onClick}>
-        <Card className="h-full bg-gradient-to-br from-card to-background hover:border-primary/50 transition-all">
+        <Card className="h-full bg-gradient-to-br from-card to-background hover:border-primary/50 transition-all border-border/50 shadow-sm backdrop-blur-sm">
             <CardContent className="p-6 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center group-hover:bg-primary/10 transition-colors">

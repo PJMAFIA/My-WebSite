@@ -4,10 +4,19 @@ import api from '@/lib/api';
 import { supabase } from '@/lib/supabase'; 
 
 /* =======================
-   TYPES
+   CONSTANTS & TYPES
 ======================= */
 
 export type CurrencyType = 'USD' | 'GBP' | 'INR' | 'PKR' | 'BDT';
+
+// ✅ Centralized Exchange Rates (Used by Dashboard, Shop, Layout)
+export const exchangeRates: Record<string, number> = { 
+  USD: 1, 
+  GBP: 0.79, 
+  INR: 83.50, 
+  PKR: 278.00, 
+  BDT: 117.00 
+};
 
 export interface PriceStructure {
   '1_day': number;
@@ -23,7 +32,7 @@ export interface User {
   role: 'user' | 'admin';
   balance: number;
   country?: string; 
-  currency?: CurrencyType; 
+  currency?: CurrencyType; // Database preference
   createdAt: string;
 }
 
@@ -43,16 +52,6 @@ export interface Product {
   softwareDownloadLink?: string;
   tutorialVideoLink?: string;
   applyProcess?: string;
-}
-
-export interface License {
-  id: string;
-  key: string;
-  productId: string;
-  userId?: string;
-  status: 'unused' | 'assigned' | 'expired' | 'revoked';
-  createdAt: string;
-  assignedAt?: string;
 }
 
 export interface Order {
@@ -78,7 +77,6 @@ export interface BalanceRequest {
   userName: string;
   userEmail: string;
   amount: number;
-  // ✅ ADDED: Currency field
   currency?: string; 
   paymentMethod: 'upi' | 'crypto' | 'bank_transfer' | 'paypal';
   transactionId: string;
@@ -88,19 +86,32 @@ export interface BalanceRequest {
   processedAt?: string;
 }
 
+export interface License {
+  id: string;
+  key: string;
+  productId: string;
+  userId?: string;
+  status: 'unused' | 'assigned' | 'expired' | 'revoked';
+  createdAt: string;
+  assignedAt?: string;
+}
+
 /* =======================
-   AUTH STORE
+   AUTH STORE (Holds Global Currency State)
 ======================= */
 
 interface AuthState {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
+  currentCurrency: CurrencyType; // ✅ Global View Currency
+  
   login: (user: User, token: string) => void;
   logout: () => Promise<void>; 
   reset: () => void;
   updateBalance: (amount: number) => void;
   refreshUser: () => Promise<void>;
+  setCurrency: (currency: CurrencyType) => void; // ✅ Action to change currency
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -109,11 +120,17 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       token: null,
       isAuthenticated: false,
+      currentCurrency: 'USD', // Default
 
-      login: (user, token) => set({ user, token, isAuthenticated: true }),
+      login: (user, token) => set({ 
+        user, 
+        token, 
+        isAuthenticated: true, 
+        currentCurrency: user.currency || 'USD' // Sync with DB on login
+      }),
 
       reset: () => {
-        set({ user: null, token: null, isAuthenticated: false });
+        set({ user: null, token: null, isAuthenticated: false, currentCurrency: 'USD' });
         sessionStorage.clear(); 
       },
 
@@ -130,7 +147,9 @@ export const useAuthStore = create<AuthState>()(
           const res = await api.get('/users/me');
           set({ user: res.data.data });
         } catch (e) { console.error("Failed to refresh user", e); }
-      }
+      },
+
+      setCurrency: (currency) => set({ currentCurrency: currency }),
     }),
     { 
       name: 'auth-storage',
@@ -145,6 +164,7 @@ export const useAuthStore = create<AuthState>()(
 
 interface BalanceRequestState {
   balanceRequests: BalanceRequest[];
+  pendingAmount: number;
   isLoading: boolean;
   fetchRequests: () => Promise<void>; 
   fetchUserRequests: () => Promise<void>; 
@@ -154,6 +174,7 @@ interface BalanceRequestState {
 
 export const useBalanceRequestStore = create<BalanceRequestState>((set) => ({
   balanceRequests: [],
+  pendingAmount: 0,
   isLoading: false,
 
   fetchRequests: async () => {
@@ -161,24 +182,13 @@ export const useBalanceRequestStore = create<BalanceRequestState>((set) => ({
     try {
       const res = await api.get('/balance/admin/all');
       const mapped = res.data.data.map((r: any) => ({
-        id: r.id,
-        userId: r.userId,
-        userName: r.userName || 'Unknown',
-        userEmail: r.userEmail || 'Unknown',
-        amount: Number(r.amount),
-        // ✅ Map Currency
-        currency: r.currency || 'USD', 
-        paymentMethod: r.paymentMethod,
-        transactionId: r.transactionId,
-        paymentScreenshot: r.paymentScreenshot,
-        status: r.status,
-        createdAt: r.createdAt,
-        processedAt: r.processedAt
+        id: r.id, userId: r.userId, userName: r.userName || 'Unknown', userEmail: r.userEmail || 'Unknown',
+        amount: Number(r.amount), currency: r.currency || 'USD', paymentMethod: r.paymentMethod,
+        transactionId: r.transactionId, paymentScreenshot: r.paymentScreenshot, status: r.status,
+        createdAt: r.createdAt, processedAt: r.processedAt
       }));
       set({ balanceRequests: mapped });
-    } finally {
-      set({ isLoading: false });
-    }
+    } finally { set({ isLoading: false }); }
   },
 
   fetchUserRequests: async () => {
@@ -186,33 +196,23 @@ export const useBalanceRequestStore = create<BalanceRequestState>((set) => ({
     try {
       const res = await api.get('/balance/my-requests');
       const mapped = res.data.data.map((r: any) => ({
-        id: r.id,
-        userId: r.user_id,
-        amount: Number(r.amount),
-        // ✅ Map Currency
-        currency: r.currency || 'USD', 
-        paymentMethod: r.paymentMethod,
-        transactionId: r.transactionId,
-        paymentScreenshot: r.paymentScreenshot,
-        status: r.status,
-        createdAt: r.createdAt,
-        processedAt: r.processedAt
+        id: r.id, userId: r.user_id, amount: Number(r.amount), currency: r.currency || 'USD',
+        paymentMethod: r.paymentMethod, transactionId: r.transactionId, paymentScreenshot: r.paymentScreenshot,
+        status: r.status, createdAt: r.createdAt, processedAt: r.processedAt
       }));
-      set({ balanceRequests: mapped });
-    } finally {
-      set({ isLoading: false });
-    }
+      
+      const pendingTotal = mapped
+        .filter((r: BalanceRequest) => r.status === 'pending')
+        .reduce((sum: number, r: BalanceRequest) => sum + r.amount, 0);
+
+      set({ balanceRequests: mapped, pendingAmount: pendingTotal });
+    } finally { set({ isLoading: false }); }
   },
 
   addBalanceRequest: async (formData) => {
     set({ isLoading: true });
-    try {
-      await api.post('/balance', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-    } finally {
-      set({ isLoading: false });
-    }
+    try { await api.post('/balance', formData, { headers: { 'Content-Type': 'multipart/form-data' } }); } 
+    finally { set({ isLoading: false }); }
   },
 
   updateBalanceRequestStatus: async (id, status) => {
@@ -221,18 +221,14 @@ export const useBalanceRequestStore = create<BalanceRequestState>((set) => ({
       const endpoint = status === 'approved' ? 'approve' : 'reject';
       await api.patch(`/balance/${id}/${endpoint}`);
       set((state) => ({
-        balanceRequests: state.balanceRequests.map((r) =>
-          r.id === id ? { ...r, status, processedAt: new Date().toISOString() } : r
-        ),
+        balanceRequests: state.balanceRequests.map((r) => r.id === id ? { ...r, status, processedAt: new Date().toISOString() } : r),
       }));
-    } finally {
-      set({ isLoading: false });
-    }
+    } finally { set({ isLoading: false }); }
   },
 }));
 
 /* =======================
-   PRODUCT STORE
+   PRODUCT & ORDER STORES
 ======================= */
 
 interface ProductState {
@@ -247,65 +243,27 @@ interface ProductState {
 export const useProductStore = create<ProductState>((set) => ({
   products: [],
   isLoading: false,
-
   fetchProducts: async () => {
     set({ isLoading: true });
     try {
       const res = await api.get('/products');
       const mapped = res.data.data.map((p: any) => ({
-        id: p.id,
-        name: p.name,
-        description: p.description,
-        image: p.image_url || '/placeholder.svg',
+        id: p.id, name: p.name, description: p.description, image: p.image_url || '/placeholder.svg',
         images: p.images && p.images.length > 0 ? p.images : [p.image_url || '/placeholder.svg'], 
         prices: {
-          '1_day': Number(p.price_1_day),
-          '7_days': Number(p.price_7_days),
-          '30_days': Number(p.price_30_days),
-          'lifetime': Number(p.price_lifetime),
+          '1_day': Number(p.price_1_day), '7_days': Number(p.price_7_days),
+          '30_days': Number(p.price_30_days), 'lifetime': Number(p.price_lifetime),
         },
         currency_prices: p.currency_prices || {}, 
-        softwareDownloadLink: p.download_link,
-        tutorialVideoLink: p.tutorial_video_link,
-        applyProcess: p.activation_process,
+        softwareDownloadLink: p.download_link, tutorialVideoLink: p.tutorial_video_link, applyProcess: p.activation_process,
       }));
       set({ products: mapped });
-    } finally {
-      set({ isLoading: false });
-    }
+    } finally { set({ isLoading: false }); }
   },
-
-  addProduct: async (formData) => {
-    set({ isLoading: true });
-    try {
-      await api.post('/products', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-    } finally {
-      set({ isLoading: false });
-    }
-  },
-
-  updateProduct: async (id, updates) => {
-    set({ isLoading: true });
-    try {
-      const isFormData = updates instanceof FormData;
-      const headers = isFormData ? { 'Content-Type': 'multipart/form-data' } : {};
-      await api.put(`/products/${id}`, updates, { headers });
-    } finally {
-      set({ isLoading: false });
-    }
-  },
-
-  deleteProduct: (id) =>
-    set((state) => ({
-      products: state.products.filter((p) => p.id !== id),
-    })),
+  addProduct: async (formData) => { set({ isLoading: true }); try { await api.post('/products', formData, { headers: { 'Content-Type': 'multipart/form-data' } }); } finally { set({ isLoading: false }); } },
+  updateProduct: async (id, updates) => { set({ isLoading: true }); try { const headers = updates instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {}; await api.put(`/products/${id}`, updates, { headers }); } finally { set({ isLoading: false }); } },
+  deleteProduct: (id) => set((state) => ({ products: state.products.filter((p) => p.id !== id) })),
 }));
-
-/* =======================
-   ORDER STORE
-======================= */
 
 interface OrderState {
   orders: Order[];
@@ -318,7 +276,6 @@ interface OrderState {
 export const useOrderStore = create<OrderState>((set) => ({
   orders: [],
   isLoading: false,
-
   fetchOrders: async (isAdmin = false) => {
     set({ isLoading: true });
     try {
@@ -326,95 +283,54 @@ export const useOrderStore = create<OrderState>((set) => ({
       const res = await api.get(endpoint);
       set({
         orders: res.data.data.map((o: any) => ({
-          id: o.id,
-          userId: o.user_id,
-          productId: o.product_id,
-          plan: o.plan,
-          price: Number(o.price),
-          status: o.status,
-          paymentMethod: o.payment_method,
-          transactionId: o.transaction_id,
-          paymentScreenshot: o.payment_screenshot_url,
-          createdAt: o.created_at,
-          completedAt: o.updated_at,
-          licenseKey: o.licenses?.key || o.licenseKey || null, 
-          softwareDownloadLink: o.products?.download_link,
-          currency: o.users?.currency || 'USD' 
+          id: o.id, userId: o.user_id, productId: o.product_id, plan: o.plan,
+          price: Number(o.price), status: o.status, paymentMethod: o.payment_method,
+          transactionId: o.transaction_id, paymentScreenshot: o.payment_screenshot_url,
+          createdAt: o.created_at, completedAt: o.updated_at, licenseKey: o.licenses?.key || o.licenseKey || null, 
+          softwareDownloadLink: o.products?.download_link, currency: o.users?.currency || 'USD' 
         })),
       });
-    } finally {
-      set({ isLoading: false });
-    }
+    } finally { set({ isLoading: false }); }
   },
-
-  updateOrderStatus: async (id, status) => {
-    set({ isLoading: true });
-    try {
-      await api.patch(`/orders/${id}/status`, { status });
-      set((state) => ({
-        orders: state.orders.map((o) => o.id === id ? { ...o, status } : o),
-      }));
-    } finally {
-      set({ isLoading: false });
-    }
-  },
-
+  updateOrderStatus: async (id, status) => { set({ isLoading: true }); try { await api.patch(`/orders/${id}/status`, { status }); set((state) => ({ orders: state.orders.map((o) => o.id === id ? { ...o, status } : o) })); } finally { set({ isLoading: false }); } },
   addOrder: (order) => set((state) => ({ orders: [...state.orders, order] })),
 }));
 
-/* =======================
-   CART & LICENSE STORES
-======================= */
-
 export const useLicenseStore = create<{ licenses: License[]; addLicense: (l: License) => void }>()(
-  persist(
-    (set) => ({
-      licenses: [],
-      addLicense: (license) => set((state) => ({ licenses: [...state.licenses, license] })),
-    }),
-    { name: 'license-storage' }
-  )
+  persist((set) => ({ licenses: [], addLicense: (license) => set((state) => ({ licenses: [...state.licenses, license] })) }), { name: 'license-storage' })
 );
 
-export const useCartStore = create<{
-  selectedProduct: Product | null;
-  selectedPlan: '1_day' | '7_days' | '30_days' | 'lifetime' | null;
-  setCart: (p: Product, plan: any) => void;
-  clearCart: () => void;
-}>((set) => ({
-  selectedProduct: null,
-  selectedPlan: null,
-  setCart: (product, plan) => set({ selectedProduct: product, selectedPlan: plan }),
-  clearCart: () => set({ selectedProduct: null, selectedPlan: null }),
-}));
+export const useCartStore = create<{ selectedProduct: Product | null; selectedPlan: '1_day' | '7_days' | '30_days' | 'lifetime' | null; setCart: (p: Product, plan: any) => void; clearCart: () => void; }>((set) => ({ selectedProduct: null, selectedPlan: null, setCart: (product, plan) => set({ selectedProduct: product, selectedPlan: plan }), clearCart: () => set({ selectedProduct: null, selectedPlan: null }), }));
 
 /* =======================
    HELPERS
 ======================= */
 
 export const generateLicenseKey = () => 'KEY-' + Math.random().toString(36).substring(2, 11).toUpperCase();
-
 export const formatPlan = (plan: string) => ({ '1_day': '1 Day', '7_days': '7 Days', '30_days': '30 Days', 'lifetime': 'Lifetime' }[plan] || plan);
-
 export const formatDate = (date: string) => new Date(date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 
-// ✅ Currency Formatting Helper
-export const formatPrice = (amount: number, currency: string = 'USD') => {
+// ✅ Updated: Uses passed currency to calculate rate and symbol
+export const formatPrice = (amountInUsd: number, currency: string = 'USD') => {
+  const rate = exchangeRates[currency] || 1;
+  const converted = amountInUsd * rate;
+  let symbol = '$';
   switch (currency) {
-    case 'PKR': return `Rs. ${amount.toLocaleString()}`;
-    case 'INR': return `₹ ${amount.toLocaleString()}`;
-    case 'BDT': return `৳ ${amount.toLocaleString()}`;
-    case 'GBP': return `£${amount.toFixed(2)}`;
-    default: return `$${amount.toFixed(2)}`;
+    case 'GBP': symbol = '£'; break;
+    case 'INR': symbol = '₹'; break;
+    case 'PKR': symbol = 'Rs. '; break;
+    case 'BDT': symbol = '৳'; break;
   }
+  return `${symbol}${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
-// ✅ Price Selector Helper
 export const getProductPrice = (product: Product, plan: string, currency: string = 'USD'): number => {
   if (currency === 'USD') return product.prices[plan as keyof PriceStructure] || 0;
   if (product.currency_prices?.[currency as CurrencyType]?.[plan as keyof PriceStructure]) {
     const local = product.currency_prices[currency as CurrencyType]![plan as keyof PriceStructure];
     return local > 0 ? local : 0;
   }
-  return 0;
+  // Fallback: Convert USD if no local price set
+  const usdPrice = product.prices[plan as keyof PriceStructure] || 0;
+  return usdPrice * (exchangeRates[currency] || 1);
 };

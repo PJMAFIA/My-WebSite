@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useProductStore, useCartStore, useAuthStore, formatPlan } from '@/store';
 
 type PlanType = '1_day' | '7_days' | '30_days' | 'lifetime';
-type CurrencyType = 'USD' | 'GBP' | 'INR' | 'PKR' | 'BDT';
+// ✅ Added NPR to Type
+type CurrencyType = 'USD' | 'GBP' | 'INR' | 'PKR' | 'BDT' | 'NPR';
 
 // --- 🌟 Dedicated Slider Component ---
 const ProductImageSlider = ({ images, name }: { images: string[]; name: string }) => {
@@ -70,12 +71,12 @@ export default function ShopPage() {
   const navigate = useNavigate();
   const { products, fetchProducts, isLoading } = useProductStore();
   const { setCart } = useCartStore();
-  const { isAuthenticated } = useAuthStore();
+  // ✅ Use Global Currency State
+  const { isAuthenticated, currentCurrency, setCurrency } = useAuthStore(); 
+  const currency = currentCurrency as CurrencyType; // Alias for cleaner code
+
   const [search, setSearch] = useState('');
   const [selectedPlans, setSelectedPlans] = useState<Record<string, PlanType>>({});
-  
-  // ✅ Currency State (Default USD)
-  const [currency, setCurrency] = useState<CurrencyType>('USD');
 
   useEffect(() => {
     fetchProducts();
@@ -103,18 +104,19 @@ export default function ShopPage() {
     }
   };
 
-  // ✅ Helper: Format Price Symbol
+  // ✅ Helper: Format Price Symbol (Added NPR)
   const formatPrice = (price: number) => {
     switch (currency) {
       case 'GBP': return `£${price.toFixed(2)}`;
       case 'INR': return `₹${price.toLocaleString()}`;
       case 'PKR': return `Rs. ${price.toLocaleString()}`;
       case 'BDT': return `৳${price.toLocaleString()}`;
+      case 'NPR': return `Rs. ${price.toLocaleString()}`; // ✅ NPR Added
       default: return `$${price.toFixed(2)}`;
     }
   };
 
-  // ✅ Helper: Get Correct Price from Product Data
+  // ✅ Helper: Get Correct Price from Product Data (Added NPR)
   const getPrice = (product: any, plan: string): number => {
     // If USD, return base prices
     if (currency === 'USD') {
@@ -139,22 +141,7 @@ export default function ShopPage() {
             <p className="text-muted-foreground mt-1">Browse our collection of premium software products</p>
           </div>
 
-          {/* ✅ Currency Dropdown */}
-          <div className="flex items-center gap-2 bg-secondary/20 p-1 rounded-lg border border-border">
-            <Globe className="h-4 w-4 text-muted-foreground ml-2" />
-            <Select value={currency} onValueChange={(v: CurrencyType) => setCurrency(v)}>
-                <SelectTrigger className="w-[110px] border-none shadow-none bg-transparent h-8 focus:ring-0">
-                    <SelectValue placeholder="Currency" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="USD">USD ($)</SelectItem>
-                    <SelectItem value="GBP">GBP (£)</SelectItem>
-                    <SelectItem value="INR">INR (₹)</SelectItem>
-                    <SelectItem value="PKR">PKR (Rs)</SelectItem>
-                    <SelectItem value="BDT">BDT (৳)</SelectItem>
-                </SelectContent>
-            </Select>
-          </div>
+         
         </div>
 
         {/* Search */}

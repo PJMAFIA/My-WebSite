@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; // ✅ Tabs
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; 
 import { useAuthStore, useProductStore, Product } from '@/store';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/api'; 
@@ -35,6 +35,7 @@ interface ProductFormData {
   prices_inr: PriceStructure;
   prices_pkr: PriceStructure;
   prices_bdt: PriceStructure;
+  prices_npr: PriceStructure; // ✅ Added NPR
 }
 
 const emptyPrices = { '1_day': 0, '7_days': 0, '30_days': 0, 'lifetime': 0 };
@@ -46,6 +47,7 @@ const defaultFormData: ProductFormData = {
   prices_inr: { ...emptyPrices },
   prices_pkr: { ...emptyPrices },
   prices_bdt: { ...emptyPrices },
+  prices_npr: { ...emptyPrices }, // ✅ Added NPR
 };
 
 export default function AdminProductsPage() {
@@ -61,8 +63,8 @@ export default function AdminProductsPage() {
   const [imageFiles, setImageFiles] = useState<File[]>([]); 
   const [existingImages, setExistingImages] = useState<string[]>([]); 
   
-  // ✅ Manual Tab State
-  const [activeTab, setActiveTab] = useState<'usd'|'gbp'|'inr'|'pkr'|'bdt'>('usd');
+  // ✅ Manual Tab State (Added 'npr')
+  const [activeTab, setActiveTab] = useState<'usd'|'gbp'|'inr'|'pkr'|'bdt'|'npr'>('usd');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -77,7 +79,7 @@ export default function AdminProductsPage() {
       setExistingImages(product.images && product.images.length > 0 ? product.images : (product.image ? [product.image] : []));
       
       // ✅ Populate Form with existing data + currency prices
-      const p = product as any; // Cast to any to avoid interface issues if store not updated
+      const p = product as any; 
       setFormData({
         name: product.name,
         description: product.description,
@@ -89,6 +91,7 @@ export default function AdminProductsPage() {
         prices_inr: p.currency_prices?.INR || { ...emptyPrices },
         prices_pkr: p.currency_prices?.PKR || { ...emptyPrices },
         prices_bdt: p.currency_prices?.BDT || { ...emptyPrices },
+        prices_npr: p.currency_prices?.NPR || { ...emptyPrices }, // ✅ Load NPR
       });
     } else {
       setEditingProduct(null); setFormData(defaultFormData);
@@ -114,12 +117,13 @@ export default function AdminProductsPage() {
       data.append('price_30_days', formData.prices['30_days'].toString()); 
       data.append('price_lifetime', formData.prices['lifetime'].toString());
       
-      // ✅ NEW: Send JSON of other currencies
+      // ✅ NEW: Send JSON of other currencies including NPR
       const currencyPrices = {
         GBP: formData.prices_gbp,
         INR: formData.prices_inr,
         PKR: formData.prices_pkr,
         BDT: formData.prices_bdt,
+        NPR: formData.prices_npr, // ✅ Save NPR
       };
       data.append('currency_prices', JSON.stringify(currencyPrices));
 
@@ -194,7 +198,8 @@ export default function AdminProductsPage() {
                 <div className="flex gap-1 border-b pb-2 mb-2 overflow-x-auto">
                   {[
                     {id: 'usd', l: 'USD ($)'}, {id: 'gbp', l: 'GBP (£)'}, 
-                    {id: 'inr', l: 'INR (₹)'}, {id: 'pkr', l: 'PKR (Rs)'}, {id: 'bdt', l: 'BDT (৳)'}
+                    {id: 'inr', l: 'INR (₹)'}, {id: 'pkr', l: 'PKR (Rs)'}, {id: 'bdt', l: 'BDT (৳)'},
+                    {id: 'npr', l: 'NPR (Rs)'} // ✅ Added NPR Tab
                   ].map(t => (
                     <button key={t.id} onClick={() => setActiveTab(t.id as any)} className={`px-3 py-1.5 text-xs font-medium rounded transition-colors whitespace-nowrap ${activeTab === t.id ? 'bg-primary text-primary-foreground' : 'bg-secondary hover:bg-secondary/80'}`}>{t.l}</button>
                   ))}
@@ -204,6 +209,7 @@ export default function AdminProductsPage() {
                 {activeTab === 'inr' && renderPriceInputs('prices_inr', '₹')}
                 {activeTab === 'pkr' && renderPriceInputs('prices_pkr', 'Rs')}
                 {activeTab === 'bdt' && renderPriceInputs('prices_bdt', '৳')}
+                {activeTab === 'npr' && renderPriceInputs('prices_npr', 'Rs')} {/* ✅ Render NPR Inputs */}
               </div>
 
               <div className="space-y-2"><Label>Links</Label><Input placeholder="Download Link" value={formData.softwareDownloadLink} onChange={e => setFormData(prev => ({...prev, softwareDownloadLink: e.target.value}))}/></div>

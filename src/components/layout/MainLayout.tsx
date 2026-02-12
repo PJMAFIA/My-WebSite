@@ -49,8 +49,9 @@ const adminNavItems = [
   { path: '/admin/announcement', label: 'Announcements', icon: Megaphone },
 ];
 
+// ✅ Added NPR Exchange Rate
 const exchangeRates: Record<string, number> = {
-  USD: 1, GBP: 0.79, INR: 83.50, PKR: 278.00, BDT: 117.00
+  USD: 1, GBP: 0.79, INR: 83.50, PKR: 278.00, BDT: 117.00, NPR: 133.00
 };
 
 export function MainLayout({ children }: LayoutProps) {
@@ -58,7 +59,8 @@ export function MainLayout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   
-  const { user, logout, isAuthenticated, currency } = useAuthStore() as any; 
+  // ✅ Get Global Currency & Setter
+  const { user, logout, isAuthenticated, currentCurrency, setCurrency } = useAuthStore() as any; 
   const { balanceRequests } = useBalanceRequestStore();
 
   const [banner, setBanner] = useState<any>(null);
@@ -74,14 +76,12 @@ export function MainLayout({ children }: LayoutProps) {
   useEffect(() => {
     // ✅ Logic to Decide if Banner Should Show
     const checkBanner = async () => {
-      // FIX: Used .maybeSingle() instead of .single() to avoid 406 error when no banner exists
       const { data } = await supabase
         .from('system_announcements')
         .select('*')
         .eq('id', 1)
-        .single(); // We fetch the row regardless of active status first
+        .maybeSingle(); 
       
-      // Now we filter in JavaScript to be safe, or handle the null gracefully
       if (!data || !data.is_active) {
         setBanner(null);
         return;
@@ -123,8 +123,9 @@ export function MainLayout({ children }: LayoutProps) {
     navigate('/');
   };
 
+  // ✅ Currency Formatter (Updated for NPR)
   const formatPrice = (amount: number) => {
-    const selectedCurrency = currency || 'USD';
+    const selectedCurrency = currentCurrency || user?.currency || 'USD';
     const rate = exchangeRates[selectedCurrency] || 1;
     const converted = amount * rate;
     
@@ -133,6 +134,7 @@ export function MainLayout({ children }: LayoutProps) {
     if (selectedCurrency === 'INR') symbol = '₹';
     if (selectedCurrency === 'PKR') symbol = 'Rs ';
     if (selectedCurrency === 'BDT') symbol = '৳';
+    if (selectedCurrency === 'NPR') symbol = 'Rs '; // ✅ NPR Symbol
 
     return `${symbol}${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
@@ -140,7 +142,8 @@ export function MainLayout({ children }: LayoutProps) {
   const CurrencySelector = () => (
     <div className="flex items-center gap-2 px-2">
       <Globe className="h-4 w-4 text-muted-foreground" />
-      <Select value={currency || 'USD'} onValueChange={(v) => useAuthStore.setState({ currency: v } as any)}>
+      {/* ✅ Connected to Global Store Setter */}
+      <Select value={currentCurrency || 'USD'} onValueChange={(v) => setCurrency(v)}>
         <SelectTrigger className="h-8 w-[80px] border-none shadow-none bg-transparent focus:ring-0 px-1 text-xs font-medium text-muted-foreground hover:text-foreground">
           <SelectValue placeholder="USD" />
         </SelectTrigger>
@@ -150,6 +153,7 @@ export function MainLayout({ children }: LayoutProps) {
           <SelectItem value="INR">INR</SelectItem>
           <SelectItem value="PKR">PKR</SelectItem>
           <SelectItem value="BDT">BDT</SelectItem>
+          <SelectItem value="NPR">NPR</SelectItem> {/* ✅ NPR Option */}
         </SelectContent>
       </Select>
     </div>
@@ -182,7 +186,7 @@ export function MainLayout({ children }: LayoutProps) {
             </Link>
           </div>
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pl-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-           
+            
             <div className="shrink-0"><CurrencySelector /></div>
             {isAuthenticated && !isAdmin && (
               <Button variant="outline" size="sm" className="flex items-center gap-2 shrink-0" onClick={() => navigate('/add-balance')}>
@@ -221,7 +225,6 @@ export function MainLayout({ children }: LayoutProps) {
           <div className="p-4 border-t border-border/50 space-y-4">
             <div className="bg-secondary/30 rounded-lg p-2 flex items-center justify-between gap-2">
                <CurrencySelector />
-   
             </div>
             {isAuthenticated && user && !isAdmin && (
               <div>
