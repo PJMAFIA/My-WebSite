@@ -13,7 +13,19 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { useAuthStore, useBalanceRequestStore, formatDate, formatPrice } from '@/store'; // ✅ Imported formatPrice
+import { useAuthStore, useBalanceRequestStore, formatDate } from '@/store'; 
+
+// ✅ Helper to get symbol (Same as Dashboard)
+const getSymbol = (curr: string) => { 
+  switch(curr) { 
+    case 'GBP': return '£'; 
+    case 'INR': return '₹'; 
+    case 'PKR': return 'Rs. '; 
+    case 'BDT': return '৳'; 
+    case 'NPR': return 'Rs. '; 
+    default: return '$'; 
+  } 
+};
 
 export default function BalanceHistoryPage() {
   const navigate = useNavigate();
@@ -29,6 +41,11 @@ export default function BalanceHistoryPage() {
   }, [isAuthenticated, navigate, fetchUserRequests]);
 
   if (!user) return null;
+
+  // ✅ New Helper: Formats price WITHOUT converting/multiplying
+  const formatRawPrice = (amount: number, currencyCode: string) => {
+    return `${getSymbol(currencyCode)}${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -88,8 +105,10 @@ export default function BalanceHistoryPage() {
                         <td className="py-4 px-6 text-sm">{formatDate(req.createdAt)}</td>
                         <td className="py-4 px-6"><Badge variant="outline">{req.paymentMethod?.replace('_', ' ').toUpperCase()}</Badge></td>
                         
-                        {/* ✅ Fixed: Now uses dynamic currency formatting */}
-                        <td className="py-4 px-6 font-bold text-primary">{formatPrice(req.amount, req.currency)}</td>
+                        {/* ✅ Fixed: Uses formatRawPrice to show exact DB amount */}
+                        <td className="py-4 px-6 font-bold text-primary">
+                            {formatRawPrice(req.amount, req.currency || 'USD')}
+                        </td>
                         
                         <td className="py-4 px-6 text-right">{getStatusBadge(req.status)}</td>
                       </motion.tr>

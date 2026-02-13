@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+// ✅ FIXED: Added 'ArrowRight' to imports
 import { 
-  Package, RefreshCw, ShoppingBag, Clock, TrendingUp, Wallet, ArrowRight, FileText, CheckCircle, XCircle, Hourglass 
+  Package, RefreshCw, ShoppingBag, Clock, Wallet, ArrowRight, FileText, CheckCircle, XCircle, Hourglass 
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -12,14 +13,14 @@ import { useAuthStore, useOrderStore, useProductStore, useBalanceRequestStore, f
 import { supabase } from '@/lib/supabase';
 import api from '@/lib/api';
 
-// ✅ Exchange Rates (Synced with MainLayout)
+// ✅ Exchange Rates (For Wallet Balance conversion)
 const exchangeRates: Record<string, number> = { 
   USD: 1, 
   GBP: 0.79, 
   INR: 83.50, 
   PKR: 278.00, 
   BDT: 117.00, 
-  NPR: 133.00 // ✅ Added NPR
+  NPR: 133.00 
 };
 
 const getSymbol = (curr: string) => { 
@@ -28,7 +29,7 @@ const getSymbol = (curr: string) => {
     case 'INR': return '₹'; 
     case 'PKR': return 'Rs. '; 
     case 'BDT': return '৳'; 
-    case 'NPR': return 'Rs. '; // ✅ Added NPR
+    case 'NPR': return 'Rs. '; 
     default: return '$'; 
   } 
 };
@@ -36,25 +37,27 @@ const getSymbol = (curr: string) => {
 export default function Dashboard() {
   const navigate = useNavigate();
   
-  // ✅ Get 'currentCurrency' (Global State from MainLayout)
+  // ✅ Get Global Currency for Wallet Display
   const { user, isAuthenticated, refreshUser, currentCurrency } = useAuthStore() as any; 
   
   const { orders, fetchOrders, isLoading } = useOrderStore();
   const { products, fetchProducts } = useProductStore();
   
-  // ✅ Get Pending Balance and Requests
   const { fetchUserRequests, pendingAmount, balanceRequests } = useBalanceRequestStore(); 
   const [resetRequests, setResetRequests] = useState<any[]>([]);
 
-  // ✅ Currency Conversion Logic
-  // Prioritizes: Dropdown Selection (currentCurrency) -> User DB Preference -> Default USD
+  // 1️⃣ For Wallet Balance (Converts Base USD -> View Currency)
   const convertPrice = (amountInUsd: number) => {
     const selectedCurrency = currentCurrency || user?.currency || 'USD'; 
     const rate = exchangeRates[selectedCurrency] || 1;
     return `${getSymbol(selectedCurrency)}${(Number(amountInUsd) * rate).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
   };
 
-  // Helper: Get Product Details
+  // 2️⃣ For Transactions (Displays Original Currency WITHOUT Conversion)
+  const formatRawPrice = (amount: number, currencyCode: string) => {
+    return `${getSymbol(currencyCode)}${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+  };
+
   const getProduct = (id: string) => products.find(p => p.id === id);
 
   const loadData = useCallback(async () => {
@@ -64,7 +67,7 @@ export default function Dashboard() {
         fetchOrders(), 
         fetchProducts(),
         refreshUser(),
-        fetchUserRequests(), // ✅ Fetch Balance Requests
+        fetchUserRequests(), 
         api.get('/resets/my-requests').then(res => setResetRequests(res.data.data)).catch(console.error)
       ]);
     } catch (error) { console.error(error); }
@@ -73,16 +76,10 @@ export default function Dashboard() {
   // ✅ REAL-TIME SUBSCRIPTION
   useEffect(() => {
     if (!user) return;
-
     const channel = supabase.channel('realtime-dashboard')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'users', filter: `id=eq.${user.id}` }, () => {
-         refreshUser(); // Balance Updated!
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'balance_requests', filter: `user_id=eq.${user.id}` }, () => {
-         fetchUserRequests(); // Status Updated!
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users', filter: `id=eq.${user.id}` }, () => { refreshUser(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'balance_requests', filter: `user_id=eq.${user.id}` }, () => { fetchUserRequests(); })
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, [user, refreshUser, fetchUserRequests]);
 
@@ -93,18 +90,17 @@ export default function Dashboard() {
 
   if (!user) return null;
 
-  // Filter Data for Widgets
   const completedOrders = orders.filter(o => o.status === 'completed');
   const pendingOrders = orders.filter(o => o.status === 'pending');
   const recentOrders = orders.slice(0, 3);
   const recentResets = resetRequests.slice(0, 3);
-  const latestBalanceRequest = balanceRequests[0]; // Most recent request
+  const latestBalanceRequest = balanceRequests[0]; 
 
   return (
     <MainLayout>
       <div className="space-y-8">
         
-        {/* 🌟 Rich Header Section */}
+        {/* Header */}
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-primary/10 via-primary/5 to-background border border-primary/10 p-8">
             <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>
@@ -131,13 +127,13 @@ export default function Dashboard() {
         {/* 📊 Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard icon={Wallet} label="Wallet Balance" value={convertPrice(user.balance || 0)} color="text-primary" bg="bg-primary/10" delay={0.05} />
-          {/* ✅ Pending Funds Widget */}
+          {/* ✅ Pending Funds (Aggregated USD -> View Currency) */}
           <StatCard icon={Hourglass} label="Pending Funds" value={convertPrice(pendingAmount || 0)} color="text-yellow-500" bg="bg-yellow-500/10" delay={0.1} />
           <StatCard icon={Package} label="Active Products" value={completedOrders.length.toString()} color="text-green-500" bg="bg-green-500/10" delay={0.15} />
           <StatCard icon={Clock} label="Pending Orders" value={pendingOrders.length.toString()} color="text-orange-500" bg="bg-orange-500/10" delay={0.2} />
         </div>
 
-        {/* 🔄 LIVE TRANSACTION TRACKER (Improved Glass UI) */}
+        {/* 🔄 LIVE TRANSACTION TRACKER (Using Raw Currency) */}
         {latestBalanceRequest && latestBalanceRequest.status === 'pending' && (
            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
              <Card className="bg-card/60 backdrop-blur-md border-primary/20 shadow-sm">
@@ -149,11 +145,16 @@ export default function Dashboard() {
                      </div>
                      <div>
                        <h3 className="font-bold text-lg text-foreground">Processing Deposit</h3>
-                       <p className="text-sm text-muted-foreground">ID: <span className="font-mono text-primary">{latestBalanceRequest.transactionId}</span> • <span className="font-semibold text-foreground">{convertPrice(latestBalanceRequest.amount)}</span></p>
+                       {/* ✅ Shows original Amount + Symbol (e.g. Rs 500) */}
+                       <p className="text-sm text-muted-foreground">
+                         ID: <span className="font-mono text-primary">{latestBalanceRequest.transactionId}</span> • 
+                         <span className="font-semibold text-foreground ml-1">
+                           {formatRawPrice(latestBalanceRequest.amount, latestBalanceRequest.currency || 'USD')}
+                         </span>
+                       </p>
                      </div>
                    </div>
                    <div className="flex items-center gap-2 w-full md:w-auto">
-                     {/* Stepper */}
                      <div className="flex items-center gap-2 text-sm">
                        <span className="flex items-center gap-1 text-muted-foreground font-medium"><CheckCircle className="h-4 w-4 text-green-500" /> Submitted</span>
                        <div className="w-8 h-px bg-border"></div>
@@ -168,24 +169,19 @@ export default function Dashboard() {
            </motion.div>
         )}
 
-        {/* 📦 Recent Activity Split View */}
+        {/* 📦 Recent Activity */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
-            {/* Left: Recent Orders Widget */}
+            {/* Left: Recent Orders */}
             <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }}>
                 <Card className="h-full flex flex-col bg-card/50 border-border/50 shadow-sm backdrop-blur-sm">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-lg font-medium flex items-center gap-2">
-                            <ShoppingBag className="h-5 w-5 text-primary" /> Recent Orders
-                        </CardTitle>
+                        <CardTitle className="text-lg font-medium flex items-center gap-2"><ShoppingBag className="h-5 w-5 text-primary" /> Recent Orders</CardTitle>
                         <Button variant="ghost" size="sm" className="text-xs h-8" onClick={() => navigate('/orders')}>View All</Button>
                     </CardHeader>
                     <CardContent className="flex-1">
                         {recentOrders.length === 0 ? (
-                            <div className="h-full flex flex-col items-center justify-center text-center p-6 text-muted-foreground">
-                                <ShoppingBag className="h-10 w-10 mb-2 opacity-20" />
-                                <p className="text-sm">No orders yet.</p>
-                            </div>
+                            <div className="h-full flex flex-col items-center justify-center text-center p-6 text-muted-foreground"><ShoppingBag className="h-10 w-10 mb-2 opacity-20" /><p className="text-sm">No orders yet.</p></div>
                         ) : (
                             <div className="space-y-3">
                                 {recentOrders.map((order) => {
@@ -193,16 +189,10 @@ export default function Dashboard() {
                                     return (
                                         <div key={order.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 border border-border/50 hover:bg-secondary/50 transition-colors">
                                             <div className="flex items-center gap-3 overflow-hidden">
-                                                <div className="w-10 h-10 rounded-md bg-background flex items-center justify-center border border-border/50 shrink-0">
-                                                    {prod?.image ? <img src={prod.image} alt={prod.name} className="w-full h-full object-contain p-1" /> : <Package className="h-5 w-5 text-muted-foreground"/>}
-                                                </div>
-                                                <div className="min-w-0">
-                                                    <p className="font-medium text-sm truncate">{prod?.name || 'Unknown Product'}</p>
-                                                    <p className="text-xs text-muted-foreground">{formatDate(order.createdAt)}</p>
-                                                </div>
+                                                <div className="w-10 h-10 rounded-md bg-background flex items-center justify-center border border-border/50 shrink-0">{prod?.image ? <img src={prod.image} alt={prod.name} className="w-full h-full object-contain p-1" /> : <Package className="h-5 w-5 text-muted-foreground"/>}</div>
+                                                <div className="min-w-0"><p className="font-medium text-sm truncate">{prod?.name || 'Unknown Product'}</p><p className="text-xs text-muted-foreground">{formatDate(order.createdAt)}</p></div>
                                             </div>
                                             <div className="text-right shrink-0">
-                                                {/* ✅ Use convertPrice for orders too */}
                                                 <p className="font-bold text-sm">{convertPrice(order.price)}</p>
                                                 <Badge variant={order.status === 'completed' ? 'active' : 'outline'} className="text-[10px] px-1.5 h-5">{order.status}</Badge>
                                             </div>
@@ -215,33 +205,23 @@ export default function Dashboard() {
                 </Card>
             </motion.div>
 
-            {/* Right: Recent Reset Requests Widget */}
+            {/* Right: Support Requests */}
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.5 }}>
                 <Card className="h-full flex flex-col bg-card/50 border-border/50 shadow-sm backdrop-blur-sm">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-lg font-medium flex items-center gap-2">
-                            <FileText className="h-5 w-5 text-primary" /> Support Requests
-                        </CardTitle>
+                        <CardTitle className="text-lg font-medium flex items-center gap-2"><FileText className="h-5 w-5 text-primary" /> Support Requests</CardTitle>
                         <Button variant="ghost" size="sm" className="text-xs h-8" onClick={() => navigate('/products')}>New Request</Button>
                     </CardHeader>
                     <CardContent className="flex-1">
                         {recentResets.length === 0 ? (
-                            <div className="h-full flex flex-col items-center justify-center text-center p-6 text-muted-foreground">
-                                <CheckCircle className="h-10 w-10 mb-2 opacity-20" />
-                                <p className="text-sm">No pending requests.</p>
-                            </div>
+                            <div className="h-full flex flex-col items-center justify-center text-center p-6 text-muted-foreground"><CheckCircle className="h-10 w-10 mb-2 opacity-20" /><p className="text-sm">No pending requests.</p></div>
                         ) : (
                             <div className="space-y-3">
                                 {recentResets.map((req) => (
                                     <div key={req.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 border border-border/50 hover:bg-secondary/50 transition-colors">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-md bg-background/50 flex items-center justify-center border border-border/50">
-                                                {req.status === 'approved' ? <CheckCircle className="h-5 w-5 text-green-500"/> : req.status === 'rejected' ? <XCircle className="h-5 w-5 text-red-500"/> : <Clock className="h-5 w-5 text-yellow-500"/>}
-                                            </div>
-                                            <div>
-                                                <p className="font-medium text-sm">Credential Reset</p>
-                                                <p className="text-xs text-muted-foreground truncate max-w-[150px]">{req.products?.name}</p>
-                                            </div>
+                                            <div className="w-10 h-10 rounded-md bg-background/50 flex items-center justify-center border border-border/50">{req.status === 'approved' ? <CheckCircle className="h-5 w-5 text-green-500"/> : req.status === 'rejected' ? <XCircle className="h-5 w-5 text-red-500"/> : <Clock className="h-5 w-5 text-yellow-500"/>}</div>
+                                            <div><p className="font-medium text-sm">Credential Reset</p><p className="text-xs text-muted-foreground truncate max-w-[150px]">{req.products?.name}</p></div>
                                         </div>
                                         <Badge variant={req.status === 'pending' ? 'outline' : req.status === 'approved' ? 'default' : 'destructive'} className="capitalize">{req.status}</Badge>
                                     </div>
@@ -253,7 +233,7 @@ export default function Dashboard() {
             </motion.div>
         </div>
 
-        {/* 🚀 Quick Navigation Cards */}
+        {/* Quick Nav */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
            <NavCard title="My Products" desc="Access downloads & licenses" icon={Package} onClick={() => navigate('/products')} delay={0.6}/>
            <NavCard title="Order History" desc="View invoices & transactions" icon={Clock} onClick={() => navigate('/orders')} delay={0.7}/>
@@ -264,7 +244,6 @@ export default function Dashboard() {
   );
 }
 
-// 🎨 Sub-components (Styled for Glass UI)
 const StatCard = ({ icon: Icon, label, value, color, bg, delay }: any) => (
   <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }}>
     <Card className="hover:shadow-md transition-shadow border-border/50 bg-card/50 backdrop-blur-sm">
@@ -279,18 +258,7 @@ const StatCard = ({ icon: Icon, label, value, color, bg, delay }: any) => (
 const NavCard = ({ title, desc, icon: Icon, onClick, delay }: any) => (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }} className="cursor-pointer group" onClick={onClick}>
         <Card className="h-full bg-gradient-to-br from-card to-background hover:border-primary/50 transition-all border-border/50 shadow-sm backdrop-blur-sm">
-            <CardContent className="p-6 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center group-hover:bg-primary/10 transition-colors">
-                        <Icon className="h-6 w-6 text-muted-foreground group-hover:text-primary transition-colors" />
-                    </div>
-                    <div>
-                        <h3 className="font-bold text-lg">{title}</h3>
-                        <p className="text-sm text-muted-foreground">{desc}</p>
-                    </div>
-                </div>
-                <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-transform" />
-            </CardContent>
+            <CardContent className="p-6 flex items-center justify-between"><div className="flex items-center gap-4"><div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center group-hover:bg-primary/10 transition-colors"><Icon className="h-6 w-6 text-muted-foreground group-hover:text-primary transition-colors" /></div><div><h3 className="font-bold text-lg">{title}</h3><p className="text-sm text-muted-foreground">{desc}</p></div></div><ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-transform" /></CardContent>
         </Card>
     </motion.div>
 );

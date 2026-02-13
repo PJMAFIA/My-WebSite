@@ -7,15 +7,16 @@ import { supabase } from '@/lib/supabase';
    CONSTANTS & TYPES
 ======================= */
 
-export type CurrencyType = 'USD' | 'GBP' | 'INR' | 'PKR' | 'BDT';
+export type CurrencyType = 'USD' | 'GBP' | 'INR' | 'PKR' | 'BDT' | 'NPR';
 
-// ✅ Centralized Exchange Rates (Used by Dashboard, Shop, Layout)
+// ✅ Centralized Exchange Rates (Must match MainLayout & Dashboard)
 export const exchangeRates: Record<string, number> = { 
   USD: 1, 
   GBP: 0.79, 
   INR: 83.50, 
   PKR: 278.00, 
-  BDT: 117.00 
+  BDT: 117.00,
+  NPR: 133.00
 };
 
 export interface PriceStructure {
@@ -32,7 +33,7 @@ export interface User {
   role: 'user' | 'admin';
   balance: number;
   country?: string; 
-  currency?: CurrencyType; // Database preference
+  currency?: CurrencyType; 
   createdAt: string;
 }
 
@@ -48,6 +49,7 @@ export interface Product {
     INR?: PriceStructure;
     PKR?: PriceStructure;
     BDT?: PriceStructure;
+    NPR?: PriceStructure;
   };
   softwareDownloadLink?: string;
   tutorialVideoLink?: string;
@@ -97,21 +99,21 @@ export interface License {
 }
 
 /* =======================
-   AUTH STORE (Holds Global Currency State)
+   AUTH STORE
 ======================= */
 
 interface AuthState {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
-  currentCurrency: CurrencyType; // ✅ Global View Currency
+  currentCurrency: CurrencyType; 
   
   login: (user: User, token: string) => void;
   logout: () => Promise<void>; 
   reset: () => void;
   updateBalance: (amount: number) => void;
   refreshUser: () => Promise<void>;
-  setCurrency: (currency: CurrencyType) => void; // ✅ Action to change currency
+  setCurrency: (currency: CurrencyType) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -120,13 +122,13 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       token: null,
       isAuthenticated: false,
-      currentCurrency: 'USD', // Default
+      currentCurrency: 'USD', 
 
       login: (user, token) => set({ 
         user, 
         token, 
         isAuthenticated: true, 
-        currentCurrency: user.currency || 'USD' // Sync with DB on login
+        currentCurrency: user.currency || 'USD' 
       }),
 
       reset: () => {
@@ -201,11 +203,18 @@ export const useBalanceRequestStore = create<BalanceRequestState>((set) => ({
         status: r.status, createdAt: r.createdAt, processedAt: r.processedAt
       }));
       
-      const pendingTotal = mapped
+      // ✅ FIX: Normalize Pending Amount to USD before summing
+      const pendingTotalUSD = mapped
         .filter((r: BalanceRequest) => r.status === 'pending')
-        .reduce((sum: number, r: BalanceRequest) => sum + r.amount, 0);
+        .reduce((sum: number, r: BalanceRequest) => {
+           // Get rate for the transaction's specific currency
+           const rate = exchangeRates[r.currency || 'USD'] || 1;
+           // Convert this transaction to USD
+           const amountInUSD = r.amount / rate;
+           return sum + amountInUSD;
+        }, 0);
 
-      set({ balanceRequests: mapped, pendingAmount: pendingTotal });
+      set({ balanceRequests: mapped, pendingAmount: pendingTotalUSD });
     } finally { set({ isLoading: false }); }
   },
 
@@ -320,6 +329,7 @@ export const formatPrice = (amountInUsd: number, currency: string = 'USD') => {
     case 'INR': symbol = '₹'; break;
     case 'PKR': symbol = 'Rs. '; break;
     case 'BDT': symbol = '৳'; break;
+    case 'NPR': symbol = 'Rs. '; break; // ✅ FIX: Added NPR Case
   }
   return `${symbol}${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
