@@ -14,10 +14,26 @@ import {
 import { 
   useAuthStore, 
   useBalanceRequestStore,
-  formatDate,
-  formatPrice // ✅ IMPORTED helper
+  formatDate
 } from '@/store';
 import { useToast } from '@/hooks/use-toast';
+
+// ✅ Exchange Rates for Admin Stats Calculation (Normalize to USD)
+const exchangeRates: Record<string, number> = { 
+  USD: 1, GBP: 0.79, INR: 83.50, PKR: 278.00, BDT: 117.00, NPR: 133.00 
+};
+
+// ✅ Helper to get symbol
+const getSymbol = (curr: string) => { 
+  switch(curr) { 
+    case 'GBP': return '£'; 
+    case 'INR': return '₹'; 
+    case 'PKR': return 'Rs. '; 
+    case 'BDT': return '৳'; 
+    case 'NPR': return 'Rs. '; 
+    default: return '$'; 
+  } 
+};
 
 export default function AdminBalancePage() {
   const navigate = useNavigate();
@@ -33,6 +49,11 @@ export default function AdminBalancePage() {
   }, [isAuthenticated, user, navigate, fetchRequests]);
 
   if (!user || user.role !== 'admin') return null;
+
+  // ✅ NEW: Formats price WITHOUT converting (Fixes the Double Conversion Bug)
+  const formatRawPrice = (amount: number, currencyCode: string) => {
+    return `${getSymbol(currencyCode || 'USD')}${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+  };
 
   const filteredRequests = balanceRequests.filter(request => {
     if (filter === 'all') return true;
@@ -58,11 +79,17 @@ export default function AdminBalancePage() {
     }
   };
 
+  // ✅ Fixed Stats Calculation: Convert everything to USD for the "Total" card
   const stats = {
     pending: balanceRequests.filter(r => r.status === 'pending').length,
     approved: balanceRequests.filter(r => r.status === 'approved').length,
     rejected: balanceRequests.filter(r => r.status === 'rejected').length,
-    totalApproved: balanceRequests.filter(r => r.status === 'approved').reduce((sum, r) => sum + r.amount, 0),
+    totalApprovedUSD: balanceRequests
+      .filter(r => r.status === 'approved')
+      .reduce((sum, r) => {
+        const rate = exchangeRates[r.currency || 'USD'] || 1;
+        return sum + (r.amount / rate); // Convert to USD before summing
+      }, 0),
   };
 
   return (
@@ -85,7 +112,7 @@ export default function AdminBalancePage() {
           <Card variant="glass"><CardContent className="pt-6 flex justify-between"><div><p className="text-sm text-muted-foreground">Pending</p><p className="text-2xl font-bold text-yellow-500">{stats.pending}</p></div><Clock className="h-8 w-8 text-yellow-500/50" /></CardContent></Card>
           <Card variant="glass"><CardContent className="pt-6 flex justify-between"><div><p className="text-sm text-muted-foreground">Approved</p><p className="text-2xl font-bold text-green-500">{stats.approved}</p></div><CheckCircle className="h-8 w-8 text-green-500/50" /></CardContent></Card>
           <Card variant="glass"><CardContent className="pt-6 flex justify-between"><div><p className="text-sm text-muted-foreground">Rejected</p><p className="text-2xl font-bold text-red-500">{stats.rejected}</p></div><XCircle className="h-8 w-8 text-red-500/50" /></CardContent></Card>
-          <Card variant="glass"><CardContent className="pt-6 flex justify-between"><div><p className="text-sm text-muted-foreground">Total Approved</p><p className="text-2xl font-bold text-primary">${stats.totalApproved.toFixed(2)}</p></div><Wallet className="h-8 w-8 text-primary/50" /></CardContent></Card>
+          <Card variant="glass"><CardContent className="pt-6 flex justify-between"><div><p className="text-sm text-muted-foreground">Total Approved (USD)</p><p className="text-2xl font-bold text-primary">${stats.totalApprovedUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p></div><Wallet className="h-8 w-8 text-primary/50" /></CardContent></Card>
         </div>
 
         {/* Table */}
@@ -111,8 +138,8 @@ export default function AdminBalancePage() {
                       <motion.tr key={request.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="border-b border-border/50 hover:bg-secondary/30">
                         <td className="py-4 px-6"><div><p className="font-medium">{request.userName}</p><p className="text-xs text-muted-foreground">{request.userEmail}</p></div></td>
                         
-                        {/* ✅ FIXED: Uses dynamic formatPrice with request.currency */}
-                        <td className="py-4 px-6 font-bold text-primary">{formatPrice(request.amount, request.currency)}</td>
+                        {/* ✅ FIXED: Uses formatRawPrice to show exact amount (e.g. Rs 500) */}
+                        <td className="py-4 px-6 font-bold text-primary">{formatRawPrice(request.amount, request.currency || 'USD')}</td>
                         
                         <td className="py-4 px-6"><Badge variant="secondary">{request.paymentMethod.replace('_', ' ').toUpperCase()}</Badge></td>
                         <td className="py-4 px-6">{getStatusBadge(request.status)}</td>
@@ -146,8 +173,8 @@ export default function AdminBalancePage() {
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div><p className="text-muted-foreground">User</p><p className="font-medium">{selectedRequestData.userName}</p></div>
                   
-                  {/* ✅ FIXED: Modal Amount also dynamic */}
-                  <div><p className="text-muted-foreground">Amount</p><p className="font-bold text-primary">{formatPrice(selectedRequestData.amount, selectedRequestData.currency)}</p></div>
+                  {/* ✅ FIXED: Modal Amount also shows raw value */}
+                  <div><p className="text-muted-foreground">Amount</p><p className="font-bold text-primary">{formatRawPrice(selectedRequestData.amount, selectedRequestData.currency || 'USD')}</p></div>
                   
                   <div><p className="text-muted-foreground">Method</p><p>{selectedRequestData.paymentMethod}</p></div>
                   <div><p className="text-muted-foreground">Transaction ID</p><code className="bg-secondary/50 px-2 py-1 rounded">{selectedRequestData.transactionId}</code></div>
