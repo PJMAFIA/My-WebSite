@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Wallet, Upload, Copy, Check, Smartphone,
-  Bitcoin, ArrowLeft, Loader2, Zap, QrCode, CreditCard, Info
+  Bitcoin, ArrowLeft, Loader2, Zap, QrCode, CreditCard, Info, X
 } from 'lucide-react';
-import imageCompression from 'browser-image-compression'; // 👈 Import this at the top
+import imageCompression from 'browser-image-compression'; 
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,8 @@ import { useAuthStore, useBalanceRequestStore } from '@/store';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/api'; 
 
-// ✅ Updated Payment Methods List
+// --- 1. CONFIGURATION & DATA ---
+
 const paymentMethods = [
   { 
     id: 'crypto_auto', 
@@ -78,7 +79,6 @@ const paymentMethods = [
   },
 ];
 
-// ✅ Dynamic Presets based on Currency
 const currencyPresets: Record<string, number[]> = {
   USD: [5, 10, 15, 30, 50, 100],
   PKR: [500, 1000, 2000, 3000, 5000, 10000],
@@ -99,14 +99,19 @@ const getCurrencySymbol = (currency: string) => {
   }
 };
 
+// --- 2. MAIN COMPONENT ---
+
 export default function AddBalancePage() {
   const navigate = useNavigate();
-  const { user, isAuthenticated } = useAuthStore();
+  const { user, isAuthenticated, currentCurrency, setCurrency: setGlobalCurrency } = useAuthStore();
   const { addBalanceRequest } = useBalanceRequestStore();
   const { toast } = useToast();
 
   const [amount, setAmount] = useState<string>('');
-  const [currency, setCurrency] = useState<string>('USD'); 
+  
+  // Local state for currency that syncs with global
+  const [currency, setCurrency] = useState<string>(currentCurrency || 'USD'); 
+
   const [paymentMethod, setPaymentMethod] = useState<string>('');
   const [transactionId, setTransactionId] = useState('');
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
@@ -114,42 +119,56 @@ export default function AddBalancePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [copied, setCopied] = useState<string>('');
-  const [showReceipt, setShowReceipt] = useState(false); // ✅ Receipt State
+  
+  // ✅ UI State for Receipt Modal
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [submissionStatus, setSubmissionStatus] = useState<'processing' | 'success' | 'error'>('processing');
 
-  // Get the correct presets for the selected currency (Default to USD if not found)
   const currentPresets = currencyPresets[currency] || currencyPresets.USD;
   const currencySymbol = getCurrencySymbol(currency);
 
-  useEffect(() => { if (user?.currency) setCurrency(user.currency); }, [user]);
+  // Sync Local Currency with Global Store
+  useEffect(() => { 
+    if (currentCurrency) setCurrency(currentCurrency); 
+  }, [currentCurrency]);
+
   useEffect(() => { if (!isAuthenticated) navigate('/login'); }, [isAuthenticated, navigate]);
 
-  // 🔄 AUTO-CURRENCY LOGIC
+  // 🔄 Auto-Switch Currency based on Payment Method
   useEffect(() => {
     if (!paymentMethod) return;
-
+    let newCurr = 'USD';
     switch (paymentMethod) {
-      case 'upi': setCurrency('INR'); break;
-      case 'easypaisa':
-      case 'jazzcash': setCurrency('PKR'); break;
-      case 'esewa': setCurrency('NPR'); break;
-      case 'bkash': setCurrency('BDT'); break;
-      case 'binance':
-      case 'paypal': 
-      case 'crypto_auto': setCurrency('USD'); break;
+      case 'upi': newCurr = 'INR'; break;
+      case 'easypaisa': case 'jazzcash': newCurr = 'PKR'; break;
+      case 'esewa': newCurr = 'NPR'; break;
+      case 'bkash': newCurr = 'BDT'; break;
+      case 'binance': case 'paypal': case 'crypto_auto': newCurr = 'USD'; break;
       default: break;
     }
-  }, [paymentMethod]);
+    setCurrency(newCurr);
+    setGlobalCurrency(newCurr as any); // Update global store too
+  }, [paymentMethod, setGlobalCurrency]);
 
   if (!user) return null;
 
   const selectedMethod = paymentMethods.find(m => m.id === paymentMethod);
   const isAutoPayment = selectedMethod?.isAuto;
 
-  const handleCopy = (text: string, label: string) => { navigator.clipboard.writeText(text); setCopied(label); setTimeout(() => setCopied(''), 2000); };
+  const handleCopy = (text: string, label: string) => { 
+    navigator.clipboard.writeText(text); 
+    setCopied(label); 
+    setTimeout(() => setCopied(''), 2000); 
+  };
   
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) { setScreenshotFile(file); const reader = new FileReader(); reader.onloadend = () => setPreviewUrl(reader.result as string); reader.readAsDataURL(file); }
+    if (file) { 
+      setScreenshotFile(file); 
+      const reader = new FileReader(); 
+      reader.onloadend = () => setPreviewUrl(reader.result as string); 
+      reader.readAsDataURL(file); 
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -160,7 +179,7 @@ export default function AddBalancePage() {
     setIsSubmitting(true);
     
     try {
-      // 🚀 CASE 1: AUTOMATED CRYPTO (No changes needed)
+      // 🚀 CASE 1: AUTO CRYPTO
       if (isAutoPayment) {
         if (parseFloat(amount) < 0.1) throw new Error("Minimum for Crypto is $0.1");
         const response = await api.post('/balance/oxapay/create-payment', { amount });
@@ -172,50 +191,51 @@ export default function AddBalancePage() {
         }
       }
 
-      // 📝 CASE 2: MANUAL UPLOAD (⚡ OPTIMIZED)
+      // 📝 CASE 2: MANUAL UPLOAD
       if (!transactionId.trim()) throw new Error("Transaction ID missing");
       if (!screenshotFile) throw new Error("Payment screenshot is required");
 
-      // 👇 1. COMPRESS IMAGE BEFORE SENDING
-      const options = {
-        maxSizeMB: 0.5,          // Max size 0.5MB (Fast upload)
-        maxWidthOrHeight: 1024,  // Resize large screenshots
-        useWebWorker: true,
-      };
+      // ⚡ STEP 1: Show Modal Immediately (Optimistic UI)
+      setShowReceipt(true);
+      setSubmissionStatus('processing');
 
+      // ⚡ STEP 2: Compress Image (Client Side)
+      const options = { maxSizeMB: 0.5, maxWidthOrHeight: 1024, useWebWorker: true };
       let fileToSend = screenshotFile;
       try {
-        // Only compress if it's an image
         if (screenshotFile.type.startsWith('image/')) {
             fileToSend = await imageCompression(screenshotFile, options);
         }
-      } catch (error) {
-        console.warn("Compression failed, sending original file", error);
+      } catch (error) { 
+        console.warn("Compression failed, sending original", error); 
       }
 
+      // ⚡ STEP 3: Upload
       const formData = new FormData();
       formData.append('amount', amount);
       formData.append('currency', currency);
       formData.append('paymentMethod', paymentMethod);
       formData.append('transactionId', transactionId.trim());
-      formData.append('paymentScreenshot', fileToSend); // 👈 Send compressed file
+      formData.append('paymentScreenshot', fileToSend); 
 
       await addBalanceRequest(formData);
       
-      setShowReceipt(true);
+      // ⚡ STEP 4: Success State
+      setSubmissionStatus('success');
 
     } catch (error: any) { 
+      setSubmissionStatus('error');
+      setTimeout(() => setShowReceipt(false), 2000); // Close on error after 2s
       toast({ title: 'Error', description: error.message || 'Failed to submit.', variant: 'destructive' }); 
     } finally { 
       if (!isAutoPayment) setIsSubmitting(false); 
-      else if (isAutoPayment && document.hidden) setIsSubmitting(false); 
-      else setTimeout(() => setIsSubmitting(false), 5000); 
     }
-};
+  };
 
   return (
     <MainLayout>
       <div className="max-w-6xl mx-auto space-y-6 pb-12 relative">
+        
         {/* Header */}
         <div className="flex items-center gap-4 mb-2">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="hover:bg-accent">
@@ -249,7 +269,7 @@ export default function AddBalancePage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Currency</Label>
-                    <Select value={currency} onValueChange={setCurrency}>
+                    <Select value={currency} onValueChange={(val) => { setCurrency(val); setGlobalCurrency(val as any); }}>
                       <SelectTrigger className="h-11"><SelectValue placeholder="Currency" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="USD">USD ($)</SelectItem>
@@ -283,7 +303,6 @@ export default function AddBalancePage() {
                 {/* Amount Section */}
                 <div className="space-y-3">
                   <Label>Select Amount</Label>
-                  {/* ✅ DYNAMIC PRESETS based on selected Currency */}
                   <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                     {currentPresets.map((preset) => (
                       <Button 
@@ -459,7 +478,7 @@ export default function AddBalancePage() {
 
         </form>
 
-        {/* 🏆 SUCCESS RECEIPT MODAL 🏆 */}
+        {/* 🏆 INSTANT SUCCESS RECEIPT MODAL 🏆 */}
         <AnimatePresence>
           {showReceipt && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -469,50 +488,61 @@ export default function AddBalancePage() {
                 exit={{ opacity: 0, scale: 0.9 }}
                 className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden relative"
               >
-                {/* Header Pattern */}
-                <div className="h-32 bg-green-500 flex items-center justify-center relative overflow-hidden">
+                {/* Header Pattern with Dynamic Status */}
+                <div className={`h-32 flex items-center justify-center relative overflow-hidden transition-colors duration-500 ${submissionStatus === 'success' ? 'bg-green-500' : 'bg-blue-500'}`}>
                    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
                    <motion.div 
                      initial={{ scale: 0 }} 
                      animate={{ scale: 1 }} 
-                     transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.2 }}
                      className="h-20 w-20 bg-white rounded-full flex items-center justify-center shadow-lg z-10"
                    >
-                     <Check className="h-10 w-10 text-green-600" strokeWidth={3} />
+                     {submissionStatus === 'processing' ? (
+                        <Loader2 className="h-10 w-10 text-blue-600 animate-spin" />
+                     ) : (
+                        <Check className="h-10 w-10 text-green-600" strokeWidth={3} />
+                     )}
                    </motion.div>
                 </div>
 
                 <div className="p-6 text-center space-y-4">
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-900">Payment Submitted!</h2>
-                    <p className="text-gray-500 text-sm">Your request has been sent for review.</p>
+                    <h2 className="text-2xl font-bold text-gray-900">
+                        {submissionStatus === 'processing' ? 'Processing...' : 'Payment Submitted!'}
+                    </h2>
+                    <p className="text-gray-500 text-sm">
+                        {submissionStatus === 'processing' ? 'Securely uploading your receipt.' : 'Your request has been sent for review.'}
+                    </p>
                   </div>
 
-                  {/* Receipt Details */}
-                  <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-3">
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-500">Amount</span>
-                      <span className="font-bold text-gray-900 text-lg">{currencySymbol}{amount}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-500">Transaction ID</span>
-                      <span className="font-mono text-gray-700 bg-gray-200 px-2 py-0.5 rounded text-xs">{transactionId}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm border-t border-gray-200 pt-3">
-                      <span className="text-gray-500">Method</span>
-                      <span className="font-medium text-gray-900 capitalize">{selectedMethod?.name}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-500">Status</span>
-                      <span className="text-yellow-600 font-bold bg-yellow-100 px-2 py-0.5 rounded-full text-xs">Pending Review</span>
-                    </div>
-                  </div>
+                  {/* Receipt Details (Only show when success) */}
+                  <AnimatePresence>
+                    {submissionStatus === 'success' && (
+                        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-3">
+                            <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-500">Amount</span>
+                            <span className="font-bold text-gray-900 text-lg">{currencySymbol}{amount}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-500">Transaction ID</span>
+                            <span className="font-mono text-gray-700 bg-gray-200 px-2 py-0.5 rounded text-xs">{transactionId}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm border-t border-gray-200 pt-3">
+                            <span className="text-gray-500">Method</span>
+                            <span className="font-medium text-gray-900 capitalize">{selectedMethod?.name}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-500">Status</span>
+                            <span className="text-yellow-600 font-bold bg-yellow-100 px-2 py-0.5 rounded-full text-xs">Pending Review</span>
+                            </div>
+                        </motion.div>
+                    )}
+                  </AnimatePresence>
 
                   <div className="flex gap-3 pt-2">
-                    <Button variant="outline" className="flex-1" onClick={() => navigate('/dashboard')}>
+                    <Button variant="outline" className="flex-1" onClick={() => navigate('/dashboard')} disabled={submissionStatus === 'processing'}>
                       Go to Dashboard
                     </Button>
-                    <Button variant="default" className="flex-1 bg-green-600 hover:bg-green-700" onClick={() => navigate('/dashboard')}>
+                    <Button variant="default" className="flex-1 bg-green-600 hover:bg-green-700" onClick={() => navigate('/dashboard')} disabled={submissionStatus === 'processing'}>
                       Track Status
                     </Button>
                   </div>
