@@ -5,6 +5,7 @@ import {
   Wallet, Upload, Copy, Check, Smartphone,
   Bitcoin, ArrowLeft, Loader2, Zap, QrCode, CreditCard, Info
 } from 'lucide-react';
+import imageCompression from 'browser-image-compression'; // 👈 Import this at the top
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -159,7 +160,7 @@ export default function AddBalancePage() {
     setIsSubmitting(true);
     
     try {
-      // 🚀 CASE 1: AUTOMATED CRYPTO PAYMENT
+      // 🚀 CASE 1: AUTOMATED CRYPTO (No changes needed)
       if (isAutoPayment) {
         if (parseFloat(amount) < 0.1) throw new Error("Minimum for Crypto is $0.1");
         const response = await api.post('/balance/oxapay/create-payment', { amount });
@@ -171,20 +172,36 @@ export default function AddBalancePage() {
         }
       }
 
-      // 📝 CASE 2: MANUAL UPLOAD
+      // 📝 CASE 2: MANUAL UPLOAD (⚡ OPTIMIZED)
       if (!transactionId.trim()) throw new Error("Transaction ID missing");
       if (!screenshotFile) throw new Error("Payment screenshot is required");
+
+      // 👇 1. COMPRESS IMAGE BEFORE SENDING
+      const options = {
+        maxSizeMB: 0.5,          // Max size 0.5MB (Fast upload)
+        maxWidthOrHeight: 1024,  // Resize large screenshots
+        useWebWorker: true,
+      };
+
+      let fileToSend = screenshotFile;
+      try {
+        // Only compress if it's an image
+        if (screenshotFile.type.startsWith('image/')) {
+            fileToSend = await imageCompression(screenshotFile, options);
+        }
+      } catch (error) {
+        console.warn("Compression failed, sending original file", error);
+      }
 
       const formData = new FormData();
       formData.append('amount', amount);
       formData.append('currency', currency);
       formData.append('paymentMethod', paymentMethod);
       formData.append('transactionId', transactionId.trim());
-      formData.append('paymentScreenshot', screenshotFile); 
+      formData.append('paymentScreenshot', fileToSend); // 👈 Send compressed file
 
       await addBalanceRequest(formData);
       
-      // 🎉 SHOW SUCCESS RECEIPT
       setShowReceipt(true);
 
     } catch (error: any) { 
@@ -194,7 +211,7 @@ export default function AddBalancePage() {
       else if (isAutoPayment && document.hidden) setIsSubmitting(false); 
       else setTimeout(() => setIsSubmitting(false), 5000); 
     }
-  };
+};
 
   return (
     <MainLayout>
