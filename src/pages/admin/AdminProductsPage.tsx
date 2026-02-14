@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Package, Plus, Edit, Trash2, Save, X, Upload, Loader2, Image as ImageIcon } from 'lucide-react';
+import { Package, Plus, Edit, Trash2, Save, X, Upload, Loader2, Image as ImageIcon, Clock } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,6 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; 
 import { useAuthStore, useProductStore, Product } from '@/store';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/api'; 
@@ -22,20 +21,22 @@ interface PriceStructure {
   'lifetime': number;
 }
 
-// Extended Form Data to hold all currencies
+// Extended Form Data
 interface ProductFormData {
   name: string;
   description: string;
   softwareDownloadLink: string;
   tutorialVideoLink: string;
   applyProcess: string;
-  // ✅ Prices for all currencies
-  prices: PriceStructure; // USD
+  prices: PriceStructure; 
   prices_gbp: PriceStructure;
   prices_inr: PriceStructure;
   prices_pkr: PriceStructure;
   prices_bdt: PriceStructure;
-  prices_npr: PriceStructure; // ✅ Added NPR
+  prices_npr: PriceStructure;
+  // ✅ Trial Fields
+  isTrial: boolean;
+  trialHours: number;
 }
 
 const emptyPrices = { '1_day': 0, '7_days': 0, '30_days': 0, 'lifetime': 0 };
@@ -47,7 +48,9 @@ const defaultFormData: ProductFormData = {
   prices_inr: { ...emptyPrices },
   prices_pkr: { ...emptyPrices },
   prices_bdt: { ...emptyPrices },
-  prices_npr: { ...emptyPrices }, // ✅ Added NPR
+  prices_npr: { ...emptyPrices },
+  isTrial: false, // Default off
+  trialHours: 48, // Default 48h
 };
 
 export default function AdminProductsPage() {
@@ -63,7 +66,6 @@ export default function AdminProductsPage() {
   const [imageFiles, setImageFiles] = useState<File[]>([]); 
   const [existingImages, setExistingImages] = useState<string[]>([]); 
   
-  // ✅ Manual Tab State (Added 'npr')
   const [activeTab, setActiveTab] = useState<'usd'|'gbp'|'inr'|'pkr'|'bdt'|'npr'>('usd');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -78,7 +80,6 @@ export default function AdminProductsPage() {
       setEditingProduct(product.id);
       setExistingImages(product.images && product.images.length > 0 ? product.images : (product.image ? [product.image] : []));
       
-      // ✅ Populate Form with existing data + currency prices
       const p = product as any; 
       setFormData({
         name: product.name,
@@ -91,7 +92,10 @@ export default function AdminProductsPage() {
         prices_inr: p.currency_prices?.INR || { ...emptyPrices },
         prices_pkr: p.currency_prices?.PKR || { ...emptyPrices },
         prices_bdt: p.currency_prices?.BDT || { ...emptyPrices },
-        prices_npr: p.currency_prices?.NPR || { ...emptyPrices }, // ✅ Load NPR
+        prices_npr: p.currency_prices?.NPR || { ...emptyPrices },
+        // ✅ Load Trial Data
+        isTrial: p.is_trial || false,
+        trialHours: p.trial_hours || 48,
       });
     } else {
       setEditingProduct(null); setFormData(defaultFormData);
@@ -111,21 +115,19 @@ export default function AdminProductsPage() {
       const data = new FormData();
       data.append('name', formData.name); data.append('description', formData.description); data.append('software_name', 'Software Name');
       
-      // USD Prices (Base columns)
       data.append('price_1_day', formData.prices['1_day'].toString()); 
       data.append('price_7_days', formData.prices['7_days'].toString()); 
       data.append('price_30_days', formData.prices['30_days'].toString()); 
       data.append('price_lifetime', formData.prices['lifetime'].toString());
       
-      // ✅ NEW: Send JSON of other currencies including NPR
       const currencyPrices = {
-        GBP: formData.prices_gbp,
-        INR: formData.prices_inr,
-        PKR: formData.prices_pkr,
-        BDT: formData.prices_bdt,
-        NPR: formData.prices_npr, // ✅ Save NPR
+        GBP: formData.prices_gbp, INR: formData.prices_inr, PKR: formData.prices_pkr, BDT: formData.prices_bdt, NPR: formData.prices_npr
       };
       data.append('currency_prices', JSON.stringify(currencyPrices));
+
+      // ✅ Append Trial Info
+      data.append('is_trial', formData.isTrial.toString());
+      data.append('trial_hours', formData.trialHours.toString());
 
       data.append('download_link', formData.softwareDownloadLink); 
       data.append('tutorial_video_link', formData.tutorialVideoLink); 
@@ -142,7 +144,6 @@ export default function AdminProductsPage() {
 
   const handleDelete = async (productId: string) => { if (!confirm('Delete product?')) return; try { await api.delete(`/products/${productId}`); toast({ title: 'Deleted', description: 'Product removed.' }); fetchProducts(); } catch (e) { toast({ title: 'Error', description: 'Delete failed.', variant: 'destructive' }); } };
 
-  // Helper to render price inputs for active tab
   const renderPriceInputs = (key: keyof ProductFormData, label: string) => (
     <div className="grid grid-cols-2 gap-4 mt-2 p-4 bg-secondary/30 rounded-lg border border-border/50">
       {(['1_day', '7_days', '30_days', 'lifetime'] as const).map(plan => (
@@ -166,12 +167,15 @@ export default function AdminProductsPage() {
       <div className="space-y-8">
         <div className="flex justify-between items-center"><h1 className="text-3xl font-bold flex items-center gap-3"><Package className="h-8 w-8 text-primary"/> Product Management</h1><Button onClick={() => handleOpenModal()}><Plus className="h-4 w-4"/> Add Product</Button></div>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {products.map(p => (
+          {products.map(p => {
+             const prod = p as any; 
+             return (
             <motion.div key={p.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
               <Card variant="glass" className="h-full">
                 <CardContent className="p-6">
                   <div className="aspect-video rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 mb-4 relative overflow-hidden">
                     <img src={(p.images && p.images[0]) || p.image || '/placeholder.svg'} className="w-full h-full object-cover" />
+                    {prod.is_trial && <div className="absolute top-2 left-2 bg-green-500 text-white text-xs font-bold px-2 py-1 rounded">FREE TRIAL</div>}
                     {p.images && p.images.length > 1 && <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded flex items-center gap-1"><ImageIcon className="h-3 w-3"/> {p.images.length}</div>}
                   </div>
                   <h3 className="text-lg font-semibold mb-2">{p.name}</h3>
@@ -179,28 +183,44 @@ export default function AdminProductsPage() {
                 </CardContent>
               </Card>
             </motion.div>
-          ))}
+          )})}
         </div>
 
         <Dialog open={isModalOpen} onOpenChange={handleCloseModal}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{editingProduct ? 'Edit' : 'Add'} Product</DialogTitle><DialogDescription>Manage details and pricing.</DialogDescription></DialogHeader>
             <div className="space-y-6">
-              {/* Image Manager */}
               <div className="space-y-2"><Label>Images</Label><div className="flex gap-2 mb-2">{existingImages.map((u, i) => <div key={i} className="relative w-16 h-16"><img src={u} className="w-full h-full object-cover rounded"/><button onClick={() => removeExistingImage(i)} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs">x</button></div>)}</div><div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed p-4 text-center cursor-pointer">Upload Images</div><input type="file" ref={fileInputRef} hidden multiple onChange={handleFileChange} />{imageFiles.length > 0 && <div className="text-xs">{imageFiles.length} new files selected</div>}</div>
               
               <div className="space-y-2"><Label>Name</Label><Input value={formData.name} onChange={e => setFormData(prev => ({...prev, name: e.target.value}))}/></div>
               <div className="space-y-2"><Label>Description</Label><Textarea value={formData.description} onChange={e => setFormData(prev => ({...prev, description: e.target.value}))}/></div>
               
-              {/* ✅ Pricing Tabs */}
+              {/* ✅ TRIAL SETTINGS */}
+              <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg space-y-4">
+                 <div className="flex items-center justify-between">
+                    <div>
+                       <Label className="font-bold">Enable Free Trial</Label>
+                       <p className="text-xs text-muted-foreground">Allow users to try this for free</p>
+                    </div>
+                    <input 
+                       type="checkbox" 
+                       className="h-5 w-5 accent-primary cursor-pointer"
+                       checked={formData.isTrial}
+                       onChange={(e) => setFormData(prev => ({...prev, isTrial: e.target.checked}))}
+                    />
+                 </div>
+                 {formData.isTrial && (
+                    <div className="space-y-2">
+                       <Label>Trial Duration (Hours)</Label>
+                       <Input type="number" value={formData.trialHours} onChange={e => setFormData(prev => ({...prev, trialHours: parseInt(e.target.value) || 0}))} />
+                    </div>
+                 )}
+              </div>
+
               <div className="space-y-2">
                 <Label>Pricing Configuration</Label>
                 <div className="flex gap-1 border-b pb-2 mb-2 overflow-x-auto">
-                  {[
-                    {id: 'usd', l: 'USD ($)'}, {id: 'gbp', l: 'GBP (£)'}, 
-                    {id: 'inr', l: 'INR (₹)'}, {id: 'pkr', l: 'PKR (Rs)'}, {id: 'bdt', l: 'BDT (৳)'},
-                    {id: 'npr', l: 'NPR (Rs)'} // ✅ Added NPR Tab
-                  ].map(t => (
+                  {[{id: 'usd', l: 'USD ($)'}, {id: 'gbp', l: 'GBP (£)'}, {id: 'inr', l: 'INR (₹)'}, {id: 'pkr', l: 'PKR (Rs)'}, {id: 'bdt', l: 'BDT (৳)'}, {id: 'npr', l: 'NPR (Rs)'}].map(t => (
                     <button key={t.id} onClick={() => setActiveTab(t.id as any)} className={`px-3 py-1.5 text-xs font-medium rounded transition-colors whitespace-nowrap ${activeTab === t.id ? 'bg-primary text-primary-foreground' : 'bg-secondary hover:bg-secondary/80'}`}>{t.l}</button>
                   ))}
                 </div>
@@ -209,7 +229,7 @@ export default function AdminProductsPage() {
                 {activeTab === 'inr' && renderPriceInputs('prices_inr', '₹')}
                 {activeTab === 'pkr' && renderPriceInputs('prices_pkr', 'Rs')}
                 {activeTab === 'bdt' && renderPriceInputs('prices_bdt', '৳')}
-                {activeTab === 'npr' && renderPriceInputs('prices_npr', 'Rs')} {/* ✅ Render NPR Inputs */}
+                {activeTab === 'npr' && renderPriceInputs('prices_npr', 'Rs')}
               </div>
 
               <div className="space-y-2"><Label>Links</Label><Input placeholder="Download Link" value={formData.softwareDownloadLink} onChange={e => setFormData(prev => ({...prev, softwareDownloadLink: e.target.value}))}/></div>

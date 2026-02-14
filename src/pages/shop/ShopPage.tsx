@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShoppingBag, Search, Loader2, ChevronLeft, ChevronRight, Globe } from 'lucide-react';
+import { ShoppingBag, Search, Loader2, ChevronLeft, ChevronRight, Gift, Zap } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useProductStore, useCartStore, useAuthStore, formatPlan } from '@/store';
+import { useToast } from '@/hooks/use-toast';
+import api from '@/lib/api';
 
 type PlanType = '1_day' | '7_days' | '30_days' | 'lifetime';
-// ✅ Added NPR to Type
 type CurrencyType = 'USD' | 'GBP' | 'INR' | 'PKR' | 'BDT' | 'NPR';
 
 // --- 🌟 Dedicated Slider Component ---
@@ -71,24 +72,59 @@ export default function ShopPage() {
   const navigate = useNavigate();
   const { products, fetchProducts, isLoading } = useProductStore();
   const { setCart } = useCartStore();
-  // ✅ Use Global Currency State
-  const { isAuthenticated, currentCurrency, setCurrency } = useAuthStore(); 
-  const currency = currentCurrency as CurrencyType; // Alias for cleaner code
+  const { isAuthenticated, currentCurrency } = useAuthStore(); 
+  const { toast } = useToast();
+  const currency = currentCurrency as CurrencyType;
 
   const [search, setSearch] = useState('');
   const [selectedPlans, setSelectedPlans] = useState<Record<string, PlanType>>({});
+  const [claimingTrial, setClaimingTrial] = useState<string | null>(null);
+  
+  // ✅ NEW: State for tracking active/expired trials
+  const [userTrials, setUserTrials] = useState<any[]>([]);
 
   useEffect(() => {
     fetchProducts();
-  }, [fetchProducts]);
+    if (isAuthenticated) {
+      fetchUserTrials();
+    }
+  }, [fetchProducts, isAuthenticated]);
 
   useEffect(() => {
     const initial: Record<string, PlanType> = {};
-    products.forEach(p => {
-      initial[p.id] = '30_days';
-    });
+    products.forEach(p => { initial[p.id] = '30_days'; });
     setSelectedPlans(initial);
   }, [products]);
+
+  // ✅ NEW: Fetch user orders to check for existing trials
+  const fetchUserTrials = async () => {
+    try {
+      const response = await api.get('/orders/my-orders');
+      if (response.data.status === 'success') {
+        const trials = response.data.data.filter((order: any) => order.plan === 'trial');
+        setUserTrials(trials);
+      }
+    } catch (error) {
+      console.error("Error fetching user trials:", error);
+    }
+  };
+
+  // ✅ NEW: Logic to check if a specific product trial is still active
+  const isTrialActive = (productId: string, trialHours: number) => {
+    const trialOrder = userTrials.find(t => t.product_id === productId);
+    if (!trialOrder) return false;
+
+    const startTime = new Date(trialOrder.created_at).getTime();
+    const expiryTime = startTime + (trialHours * 60 * 60 * 1000);
+    const currentTime = new Date().getTime();
+
+    return currentTime < expiryTime;
+  };
+
+  // ✅ NEW: Logic to check if user has already used their trial (Active or Expired)
+  const hasUsedTrial = (productId: string) => {
+    return userTrials.some(t => t.product_id === productId);
+  };
 
   const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -104,29 +140,39 @@ export default function ShopPage() {
     }
   };
 
-  // ✅ Helper: Format Price Symbol (Added NPR)
+  const handleClaimTrial = async (productId: string) => {
+    if (!isAuthenticated) { navigate('/login'); return; }
+    
+    setClaimingTrial(productId);
+    try {
+        const response = await api.post('/orders/claim-trial', { productId });
+        if (response.data.status === 'success') {
+            toast({ title: "Success!", description: "Free trial claimed. Check your dashboard.", className: "bg-green-500 text-white" });
+            fetchUserTrials(); // Refresh trials
+            navigate('/dashboard');
+        }
+    } catch (error: any) {
+        toast({ title: "Failed", description: error.response?.data?.message || "Could not claim trial.", variant: "destructive" });
+    } finally {
+        setClaimingTrial(null);
+    }
+  };
+
   const formatPrice = (price: number) => {
     switch (currency) {
       case 'GBP': return `£${price.toFixed(2)}`;
       case 'INR': return `₹${price.toLocaleString()}`;
       case 'PKR': return `Rs. ${price.toLocaleString()}`;
       case 'BDT': return `৳${price.toLocaleString()}`;
-      case 'NPR': return `Rs. ${price.toLocaleString()}`; // ✅ NPR Added
+      case 'NPR': return `Rs. ${price.toLocaleString()}`;
       default: return `$${price.toFixed(2)}`;
     }
   };
 
-  // ✅ Helper: Get Correct Price from Product Data (Added NPR)
   const getPrice = (product: any, plan: string): number => {
-    // If USD, return base prices
-    if (currency === 'USD') {
-        return product.prices[plan] || 0;
-    }
-    // For other currencies, check currency_prices object
-    if (product.currency_prices?.[currency]?.[plan]) {
-        return product.currency_prices[currency][plan];
-    }
-    return 0; // Return 0 if price not defined for that currency
+    if (currency === 'USD') return product.prices[plan] || 0;
+    if (product.currency_prices?.[currency]?.[plan]) return product.currency_prices[currency][plan];
+    return 0;
   };
 
   return (
@@ -140,8 +186,6 @@ export default function ShopPage() {
             </h1>
             <p className="text-muted-foreground mt-1">Browse our collection of premium software products</p>
           </div>
-
-         
         </div>
 
         {/* Search */}
@@ -158,47 +202,91 @@ export default function ShopPage() {
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredProducts.map((product, i) => {
+                const prod = product as any;
                 const selectedPlan = selectedPlans[product.id] || '30_days';
                 const currentPrice = getPrice(product, selectedPlan);
+                
+                // ✅ Check if trial is active or already used
+                const trialIsActive = isTrialActive(product.id, prod.trial_hours);
+                const trialAlreadyUsed = hasUsedTrial(product.id);
 
                 return (
                 <motion.div key={product.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
-                    <Card variant="glass" className="h-full flex flex-col hover:border-primary/50 transition-all hover:shadow-lg hover:shadow-primary/10">
-                    <CardContent className="p-6 flex-1 flex flex-col">
+                    <Card variant="glass" className="h-full flex flex-col hover:border-primary/50 transition-all hover:shadow-lg hover:shadow-primary/10 relative overflow-hidden">
                         
-                        <ProductImageSlider images={product.images && product.images.length > 0 ? product.images : [product.image]} name={product.name} />
-
-                        <div className="flex-1">
-                        <h3 className="text-xl font-semibold mb-2">{product.name}</h3>
-                        <p className="text-muted-foreground text-sm mb-4 line-clamp-2">{product.description}</p>
-                        </div>
-
-                        <div className="space-y-4">
-                        <div className="flex items-center gap-3">
-                            <Select value={selectedPlans[product.id] || '30_days'} onValueChange={(value: PlanType) => setSelectedPlans(prev => ({ ...prev, [product.id]: value }))}>
-                            <SelectTrigger className="flex-1"><SelectValue placeholder="Select plan" /></SelectTrigger>
-                            <SelectContent>
-                                {['1_day', '7_days', '30_days', 'lifetime'].map(plan => {
-                                    const pPrice = getPrice(product, plan);
-                                    // Hide if price is 0 (not set) AND not USD. (Always show USD 0 if set)
-                                    if(pPrice === 0 && currency !== 'USD') return null;
-                                    return (
-                                        <SelectItem key={plan} value={plan}>{formatPlan(plan)} - {formatPrice(pPrice)}</SelectItem>
-                                    )
-                                })}
-                            </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                            <div>
-                            <p className="text-2xl font-bold text-primary">{formatPrice(currentPrice)}</p>
-                            <p className="text-xs text-muted-foreground">{formatPlan(selectedPlans[product.id] || '30_days')} plan</p>
+                        {/* ✅ Dynamic Trial Badge */}
+                        {prod.is_trial && !trialAlreadyUsed && (
+                            <div className="absolute top-0 left-0 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-xs font-bold px-3 py-1 z-20 rounded-br-lg shadow-lg">
+                                FREE TRIAL ({prod.trial_hours}H)
                             </div>
-                            <Button variant="gradient" onClick={() => handleBuyNow(product.id)}>Buy Now</Button>
-                        </div>
-                        </div>
-                    </CardContent>
+                        )}
+                        {trialIsActive && (
+                            <div className="absolute top-0 left-0 bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-xs font-bold px-3 py-1 z-20 rounded-br-lg shadow-lg">
+                                TRIAL ACTIVE
+                            </div>
+                        )}
+
+                        <CardContent className="p-6 flex-1 flex flex-col">
+                            <ProductImageSlider images={product.images && product.images.length > 0 ? product.images : [product.image]} name={product.name} />
+
+                            <div className="flex-1">
+                                <h3 className="text-xl font-semibold mb-2">{product.name}</h3>
+                                <p className="text-muted-foreground text-sm mb-4 line-clamp-2">{product.description}</p>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div className="flex items-center gap-3">
+                                    <Select value={selectedPlans[product.id] || '30_days'} onValueChange={(value: PlanType) => setSelectedPlans(prev => ({ ...prev, [product.id]: value }))}>
+                                    <SelectTrigger className="flex-1"><SelectValue placeholder="Select plan" /></SelectTrigger>
+                                    <SelectContent>
+                                        {['1_day', '7_days', '30_days', 'lifetime'].map(plan => {
+                                            const pPrice = getPrice(product, plan);
+                                            if(pPrice === 0 && currency !== 'USD') return null;
+                                            return (
+                                                <SelectItem key={plan} value={plan}>{formatPlan(plan)} - {formatPrice(pPrice)}</SelectItem>
+                                            )
+                                        })}
+                                    </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="flex items-center justify-between gap-3">
+                                    <div className="flex-1">
+                                        <p className="text-2xl font-bold text-primary">{formatPrice(currentPrice)}</p>
+                                        <p className="text-xs text-muted-foreground">{formatPlan(selectedPlans[product.id] || '30_days')} plan</p>
+                                    </div>
+                                    
+                                    <div className="flex flex-col gap-2">
+                                        <Button variant="gradient" size="sm" onClick={() => handleBuyNow(product.id)}>Buy Now</Button>
+                                        
+                                        {/* ✅ Conditional Trial Button: Hidden if already used */}
+                                        {prod.is_trial && !trialAlreadyUsed && (
+                                            <Button 
+                                                variant="outline" 
+                                                size="sm" 
+                                                className="border-green-500 text-green-500 hover:bg-green-500 hover:text-white"
+                                                onClick={() => handleClaimTrial(product.id)}
+                                                disabled={claimingTrial === product.id}
+                                            >
+                                                {claimingTrial === product.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <><Gift className="h-4 w-4 mr-1"/> Try Free</>}
+                                            </Button>
+                                        )}
+
+                                        {/* ✅ Show dashboard link if trial is active */}
+                                        {trialIsActive && (
+                                            <Button 
+                                                variant="outline" 
+                                                size="sm" 
+                                                className="border-blue-500 text-blue-500"
+                                                onClick={() => navigate('/dashboard')}
+                                            >
+                                                <Zap className="h-4 w-4 mr-1"/> Use Trial
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </CardContent>
                     </Card>
                 </motion.div>
                 )

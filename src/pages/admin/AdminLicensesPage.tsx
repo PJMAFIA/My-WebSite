@@ -6,7 +6,6 @@ import {
   Plus, 
   Trash2,
   Upload,
-  AlertTriangle,
   Loader2
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -48,15 +47,12 @@ export default function AdminLicensesPage() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<string>('');
-  
-  // Selection State
   const [selectedPlan, setSelectedPlan] = useState<string>(''); 
   const [bulkKeys, setBulkKeys] = useState('');
-  
   const [filter, setFilter] = useState<'all' | 'unused' | 'assigned' | 'revoked'>('all');
   const [licenses, setLicenses] = useState<License[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false); // New state for delete button
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated || user?.role !== 'admin') {
@@ -67,22 +63,22 @@ export default function AdminLicensesPage() {
     fetchLicenses();
   }, [isAuthenticated, user, navigate, fetchProducts]);
 
- const fetchLicenses = async () => {
-  try {
-    const response = await api.get('/licenses');
-    const mappedLicenses = response.data.data.map((l: any) => ({
-      id: l.id,
-      key: l.key, // ✅ CHANGE THIS: 'l.license_key' -> 'l.key'
-      productId: l.product_id,
-      status: l.status,
-      plan: l.plan, 
-      createdAt: l.created_at
-    }));
-    setLicenses(mappedLicenses);
-  } catch (error) {
-    console.error("Failed to fetch licenses");
-  }
-};
+  const fetchLicenses = async () => {
+    try {
+      const response = await api.get('/licenses');
+      const mappedLicenses = response.data.data.map((l: any) => ({
+        id: l.id,
+        key: l.key, 
+        productId: l.product_id,
+        status: l.status,
+        plan: l.plan, 
+        createdAt: l.created_at
+      }));
+      setLicenses(mappedLicenses);
+    } catch (error) {
+      console.error("Failed to fetch licenses");
+    }
+  };
 
   if (!user || user.role !== 'admin') return null;
 
@@ -93,14 +89,9 @@ export default function AdminLicensesPage() {
     return license.status === filter;
   });
 
-  // --- 1. Generate Random Key ---
   const handleGenerateSingle = async () => {
-    if (!selectedProduct) {
-      toast({ title: 'Error', description: 'Select a product first.', variant: 'destructive' });
-      return;
-    }
-    if (!selectedPlan) {
-      toast({ title: 'Error', description: 'Select a duration (plan) first.', variant: 'destructive' });
+    if (!selectedProduct || !selectedPlan) {
+      toast({ title: 'Error', description: 'Select a product and duration first.', variant: 'destructive' });
       return;
     }
 
@@ -122,19 +113,13 @@ export default function AdminLicensesPage() {
     }
   };
 
-  // --- 2. Bulk Add ---
   const handleBulkAdd = async () => {
-    if (!selectedProduct) {
-      toast({ title: 'Error', description: 'Select a product first.', variant: 'destructive' });
-      return;
-    }
-    if (!selectedPlan) {
-      toast({ title: 'Error', description: 'Select a duration (plan) first.', variant: 'destructive' });
+    if (!selectedProduct || !selectedPlan) {
+      toast({ title: 'Error', description: 'Select a product and duration first.', variant: 'destructive' });
       return;
     }
 
     const keys = bulkKeys.split('\n').map(k => k.trim()).filter(k => k.length > 0);
-
     if (keys.length === 0) {
       toast({ title: 'Error', description: 'Enter at least one key.', variant: 'destructive' });
       return;
@@ -159,61 +144,36 @@ export default function AdminLicensesPage() {
     }
   };
 
-  // --- 3. Handle Single Delete ---
   const handleRevoke = async (licenseId: string) => {
-    const licenseToDelete = licenses.find(l => l.id === licenseId);
-    if (licenseToDelete && licenseToDelete.status !== 'unused') {
-      toast({ 
-        title: 'Cannot Delete', 
-        description: 'You can only delete unused keys.', 
-        variant: 'destructive' 
-      });
-      return;
-    }
-
     try {
       await api.delete(`/licenses/${licenseId}`);
       setLicenses(prev => prev.filter(l => l.id !== licenseId));
       toast({ title: 'Deleted', description: 'License removed successfully.' });
     } catch (error: any) {
-      toast({ title: 'Error', description: error.response?.data?.message || 'Failed to delete.', variant: 'destructive' });
+      toast({ title: 'Error', description: 'Failed to delete.', variant: 'destructive' });
     }
   };
 
-  // --- 4. Handle Delete ALL Unused (NEW) ---
   const handleDeleteAllUnused = async () => {
     const unusedCount = licenses.filter(l => l.status === 'unused').length;
-    
-    if (unusedCount === 0) {
-      toast({ title: 'No Unused Keys', description: 'There are no unused keys to delete.' });
-      return;
-    }
-
-    if (!confirm(`Are you sure you want to delete ALL ${unusedCount} unused license keys? This cannot be undone.`)) {
-      return;
-    }
+    if (unusedCount === 0 || !confirm(`Delete ALL ${unusedCount} unused keys?`)) return;
 
     setIsDeleting(true);
     try {
-      // Call special 'unused' endpoint
-      const response = await api.delete('/licenses/unused'); 
-      
-      // Refresh list
+      await api.delete('/licenses/unused'); 
       await fetchLicenses();
-      
-      toast({ 
-        title: 'Cleanup Complete', 
-        description: response.data.message || `Deleted ${unusedCount} unused keys.` 
-      });
+      toast({ title: 'Cleanup Complete', description: `Deleted ${unusedCount} unused keys.` });
     } catch (error: any) {
-      toast({ 
-        title: 'Delete Failed', 
-        description: error.response?.data?.message || 'Could not delete keys.', 
-        variant: 'destructive' 
-      });
+      toast({ title: 'Error', description: 'Delete failed.', variant: 'destructive' });
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  // ✅ Updated plan formatter to handle trial durations
+  const formatPlanName = (plan: string) => {
+    if (!plan) return 'LICENSE';
+    return plan.replace('_', ' ').replace('trial', 'TRIAL').toUpperCase();
   };
 
   const getStatusColor = (status: string) => {
@@ -232,24 +192,16 @@ export default function AdminLicensesPage() {
     unused: licenses.filter(l => l.productId === product.id && l.status === 'unused').length,
   }));
 
-  const formatPlanName = (plan: string) => plan ? plan.replace('_', ' ').toUpperCase() : 'LICENSE';
-
   return (
     <MainLayout>
       <div className="space-y-8">
-        {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-3">
-              <Key className="h-8 w-8 text-primary" />
-              License Management
+              <Key className="h-8 w-8 text-primary" /> License Management
             </h1>
-            <p className="text-muted-foreground mt-1">
-              Manage keys and stock levels
-            </p>
           </div>
           <div className="flex gap-2">
-            {/* New Delete All Button */}
             <Button 
               variant="destructive" 
               onClick={handleDeleteAllUnused} 
@@ -258,44 +210,38 @@ export default function AdminLicensesPage() {
               {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
               Clear Unused
             </Button>
-            
             <Button variant="gradient" onClick={() => setIsModalOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Stock
+              <Plus className="h-4 w-4 mr-2" /> Add Stock
             </Button>
           </div>
         </div>
 
-        {/* Stock Overview */}
+        {/* Stock Overview Cards */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {licensesByProduct.map(({ product, licenses: productLicenses, unused }) => (
-            <motion.div key={product.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-              <Card variant="glass">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
-                      <span className="text-xl font-bold text-primary">{product.name.charAt(0)}</span>
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold">{product.name}</h3>
-                      <p className="text-sm text-muted-foreground">{productLicenses.length} total keys</p>
-                    </div>
+            <Card key={product.id} variant="glass">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center font-bold text-primary">
+                    {product.name.charAt(0)}
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge variant={unused > 0 ? 'success' : 'destructive'}>{unused} available</Badge>
-                    </div>
-                    <Button variant="ghost" size="sm" onClick={() => { setSelectedProduct(product.id); setIsModalOpen(true); }}>
-                      <Plus className="h-4 w-4" />
-                    </Button>
+                  <div className="flex-1">
+                    <h3 className="font-semibold">{product.name}</h3>
+                    <p className="text-sm text-muted-foreground">{productLicenses.length} total</p>
                   </div>
-                </CardContent>
-              </Card>
-            </motion.div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <Badge variant={unused > 0 ? 'success' : 'destructive'}>{unused} available</Badge>
+                  <Button variant="ghost" size="sm" onClick={() => { setSelectedProduct(product.id); setIsModalOpen(true); }}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
 
-        {/* Filter */}
+        {/* Filter Buttons */}
         <div className="flex items-center gap-2">
           {(['all', 'unused', 'assigned', 'revoked'] as const).map((status) => (
             <Button key={status} variant={filter === status ? 'default' : 'outline'} size="sm" onClick={() => setFilter(status)}>
@@ -304,70 +250,47 @@ export default function AdminLicensesPage() {
           ))}
         </div>
 
-        {/* Licenses Table */}
+        {/* Table List */}
         <Card variant="glass">
-          <CardContent className="p-0">
-            {filteredLicenses.length === 0 ? (
-              <div className="text-center py-16">
-                <Key className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">No licenses found.</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Key</th>
-                      <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Plan</th>
-                      <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Product</th>
-                      <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Status</th>
-                      <th className="text-right py-4 px-6 text-sm font-medium text-muted-foreground">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredLicenses.map((license) => {
-                      const product = getProduct(license.productId);
-                      return (
-                        <motion.tr key={license.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="border-b border-border/50 hover:bg-secondary/30">
-                          <td className="py-4 px-6"><code className="text-sm font-mono">{license.key}</code></td>
-                          <td className="py-4 px-6"><Badge variant="outline">{license.plan?.replace('_', ' ') || 'Lifetime'}</Badge></td>
-                          <td className="py-4 px-6 font-medium">{product?.name || 'Unknown'}</td>
-                          <td className="py-4 px-6"><Badge variant={getStatusColor(license.status) as any}>{license.status}</Badge></td>
-                          <td className="py-4 px-6">
-                            <div className="flex justify-end">
-                              {license.status === 'unused' && (
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
-                                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                  onClick={() => handleRevoke(license.id)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              )}
-                            </div>
-                          </td>
-                        </motion.tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+          <CardContent className="p-0 overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Key</th>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Plan</th>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Product</th>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Status</th>
+                  <th className="text-right py-4 px-6 text-sm font-medium text-muted-foreground">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredLicenses.map((license) => (
+                  <tr key={license.id} className="border-b border-border/50 hover:bg-secondary/30">
+                    <td className="py-4 px-6 font-mono text-sm">{license.key}</td>
+                    <td className="py-4 px-6"><Badge variant="outline">{formatPlanName(license.plan || 'lifetime')}</Badge></td>
+                    <td className="py-4 px-6 font-medium">{getProduct(license.productId)?.name || 'Unknown'}</td>
+                    <td className="py-4 px-6"><Badge variant={getStatusColor(license.status) as any}>{license.status}</Badge></td>
+                    <td className="py-4 px-6 text-right">
+                      {license.status === 'unused' && (
+                        <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleRevoke(license.id)}><Trash2 className="h-4 w-4" /></Button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </CardContent>
         </Card>
 
         {/* ADD STOCK MODAL */}
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>Add Inventory</DialogTitle>
-              <DialogDescription>Add License Keys for a specific duration.</DialogDescription>
+              <DialogDescription>Add License Keys for standard or trial durations.</DialogDescription>
             </DialogHeader>
 
             <div className="space-y-6">
-              
-              {/* 1. Selection Area */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Product</Label>
@@ -387,30 +310,35 @@ export default function AdminLicensesPage() {
                       <SelectItem value="7_days">7 Days</SelectItem>
                       <SelectItem value="30_days">30 Days</SelectItem>
                       <SelectItem value="lifetime">Lifetime</SelectItem>
+                      {/* ✅ NEW TRIAL OPTIONS */}
+                      <SelectItem value="trial_1_day" className="font-semibold text-primary">Trial: 1 Day</SelectItem>
+                      <SelectItem value="trial_2_days" className="font-semibold text-primary">Trial: 2 Days</SelectItem>
+                      <SelectItem value="trial_3_days" className="font-semibold text-primary">Trial: 3 Days</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
-              {/* Only show inputs if both Product and Plan are selected */}
               {selectedProduct && selectedPlan ? (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-                  
+                <div className="space-y-4">
                   <div className="relative">
                     <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-                    <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground font-medium">Adding {formatPlanName(selectedPlan)} Keys</span></div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-background px-2 text-muted-foreground font-medium">
+                        Adding {formatPlanName(selectedPlan)} Keys
+                      </span>
+                    </div>
                   </div>
 
-                  {/* SECTION B: Bulk Import (Primary Option now) */}
                   <div className="space-y-3">
                     <div className="flex justify-between items-center">
-                        <Label>Bulk Import Keys</Label>
-                        <span className="text-xs text-muted-foreground">One key per line</span>
+                      <Label>Bulk Import Keys</Label>
+                      <span className="text-xs text-muted-foreground">One per line</span>
                     </div>
                     <Textarea 
                       value={bulkKeys} 
                       onChange={(e) => setBulkKeys(e.target.value)} 
-                      placeholder={`KEY-1\nKEY-2\nKEY-3`} 
+                      placeholder={`KEY-1\nKEY-2`} 
                       rows={6} 
                       className="font-mono text-xs" 
                     />
@@ -419,21 +347,17 @@ export default function AdminLicensesPage() {
                       Save {formatPlanName(selectedPlan)} Keys
                     </Button>
                   </div>
-
-                  {/* SECTION C: Random Key (Utility) */}
                   <div className="flex justify-end pt-2 border-t border-border">
                     <Button size="sm" variant="ghost" className="text-xs text-muted-foreground" onClick={handleGenerateSingle} disabled={isLoading}>
                       Generate 1 Random Key Instead
                     </Button>
                   </div>
-
-                </motion.div>
+                </div>
               ) : (
-                <div className="py-8 text-center text-muted-foreground text-sm bg-secondary/20 rounded-xl border border-dashed">
-                  Please select a Product and Duration to add keys.
+                <div className="py-8 text-center text-muted-foreground text-sm bg-secondary/20 rounded-xl border border-dashed border-border">
+                  Please select a Product and Duration.
                 </div>
               )}
-
             </div>
           </DialogContent>
         </Dialog>

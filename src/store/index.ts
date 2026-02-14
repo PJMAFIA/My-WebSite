@@ -54,17 +54,23 @@ export interface Product {
   softwareDownloadLink?: string;
   tutorialVideoLink?: string;
   applyProcess?: string;
+  
+  // ✅ NEW: Trial Fields
+  is_trial?: boolean;
+  trial_hours?: number;
 }
 
 export interface Order {
   id: string;
   userId: string;
   productId: string;
-  plan: '1_day' | '7_days' | '30_days' | 'lifetime';
+  // ✅ ADDED 'trial' to Plan Type
+  plan: '1_day' | '7_days' | '30_days' | 'lifetime' | 'trial';
   price: number;
   currency?: string; 
   status: 'pending' | 'completed' | 'rejected';
-  paymentMethod: 'upi' | 'crypto' | 'bank_transfer' | 'paypal';
+  // ✅ ADDED 'free_trial' to Payment Method
+  paymentMethod: 'upi' | 'crypto' | 'bank_transfer' | 'paypal' | 'free_trial';
   transactionId: string;
   paymentScreenshot?: string;
   createdAt: string;
@@ -265,6 +271,10 @@ export const useProductStore = create<ProductState>((set) => ({
         },
         currency_prices: p.currency_prices || {}, 
         softwareDownloadLink: p.download_link, tutorialVideoLink: p.tutorial_video_link, applyProcess: p.activation_process,
+        
+        // ✅ CRITICAL ADDITION: Mapping Trial Data
+        is_trial: p.is_trial,
+        trial_hours: p.trial_hours
       }));
       set({ products: mapped });
     } finally { set({ isLoading: false }); }
@@ -316,7 +326,16 @@ export const useCartStore = create<{ selectedProduct: Product | null; selectedPl
 ======================= */
 
 export const generateLicenseKey = () => 'KEY-' + Math.random().toString(36).substring(2, 11).toUpperCase();
-export const formatPlan = (plan: string) => ({ '1_day': '1 Day', '7_days': '7 Days', '30_days': '30 Days', 'lifetime': 'Lifetime' }[plan] || plan);
+
+// ✅ UPDATED: Added 'trial' to Plan Helper
+export const formatPlan = (plan: string) => ({ 
+  '1_day': '1 Day', 
+  '7_days': '7 Days', 
+  '30_days': '30 Days', 
+  'lifetime': 'Lifetime',
+  'trial': 'Free Trial' 
+}[plan] || plan);
+
 export const formatDate = (date: string) => new Date(date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 
 // ✅ Updated: Uses passed currency to calculate rate and symbol
