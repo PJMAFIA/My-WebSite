@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Wallet, Upload, Copy, Check, Smartphone,
-  Bitcoin, ArrowLeft, Loader2, Zap, QrCode, CreditCard, Info
+  Bitcoin, ArrowLeft, Loader2, Zap, QrCode, CreditCard, Info, AlertCircle
 } from 'lucide-react';
 import imageCompression from 'browser-image-compression'; 
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -104,11 +104,16 @@ export default function AddBalancePage() {
     navigator.clipboard.writeText(text); 
     setCopied(label); 
     setTimeout(() => setCopied(''), 2000); 
+    toast({ description: "Copied to clipboard", className: "h-8" });
   };
   
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) { 
+      // Basic validation
+      if (!file.type.startsWith('image/')) {
+        return toast({ title: "Invalid File", description: "Please upload an image (JPG, PNG).", variant: "destructive" });
+      }
       setScreenshotFile(file); 
       const reader = new FileReader(); 
       reader.onloadend = () => setPreviewUrl(reader.result as string); 
@@ -116,9 +121,7 @@ export default function AddBalancePage() {
     }
   };
 
- // ... imports remain same ...
-
-const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!amount || parseFloat(amount) <= 0) return toast({ title: 'Invalid Amount', variant: 'destructive' });
     if (!paymentMethod) return toast({ title: 'Missing Method', variant: 'destructive' });
@@ -126,17 +129,26 @@ const handleSubmit = async (e: React.FormEvent) => {
     setIsSubmitting(true);
     
     try {
-      // 🚀 CASE 1: AUTOMATED CRYPTO (Keep await)
+      // 🚀 CASE 1: AUTOMATED CRYPTO
       if (isAutoPayment) {
-        // ... existing crypto logic ...
+        const response = await api.post('/crypto/create-invoice', { 
+            amount: parseFloat(amount),
+            currency: 'USD' 
+        });
+        
+        if (response.data?.paymentUrl) {
+            window.location.href = response.data.paymentUrl;
+        } else {
+            throw new Error("Failed to generate payment link");
+        }
         return; 
       }
 
-      // 📝 CASE 2: MANUAL UPLOAD - ⚡ INSTANT FEEDBACK FIX
+      // 📝 CASE 2: MANUAL UPLOAD - ⚡ MOBILE FIX
       if (!transactionId.trim()) throw new Error("Transaction ID missing");
       if (!screenshotFile) throw new Error("Payment screenshot is required");
 
-      // 🛑 FORCE CORRECT CURRENCY
+      // 🛑 FORCE CORRECT CURRENCY FOR SUBMISSION
       let submitCurrency = 'USD';
       switch (paymentMethod) {
         case 'upi': submitCurrency = 'INR'; break;
@@ -144,24 +156,36 @@ const handleSubmit = async (e: React.FormEvent) => {
         case 'easypaisa':
         case 'jazzcash': submitCurrency = 'PKR'; break;
         case 'bkash': submitCurrency = 'BDT'; break;
-        case 'binance':
-        case 'paypal':
-        case 'crypto_auto': 
         default: submitCurrency = 'USD'; break;
       }
 
-      // ✅ 1. SHOW SUCCESS INSTANTLY (Don't wait for compression)
+      // ✅ 1. SHOW PROCESSING UI INSTANTLY
       setShowReceipt(true);
-      setSubmissionStatus('success');
+      setSubmissionStatus('processing');
 
-      // ✅ 2. DO THE WORK IN BACKGROUND
-      (async () => {
+      // ✅ 2. BACKGROUND COMPRESSION & UPLOAD
+      // This prevents the UI from freezing on mobile while compressing 5MB+ images
+      setTimeout(async () => {
         try {
-          // Compress (Faster Settings)
-          const options = { maxSizeMB: 0.2, maxWidthOrHeight: 800, useWebWorker: true };
+          // Compression Settings
+          const options = { 
+            maxSizeMB: 0.3,          // Compress to ~300KB
+            maxWidthOrHeight: 1000,  // Resize to max 1000px
+            useWebWorker: true,      // Run in background thread
+            fileType: 'image/jpeg'   // Force JPEG for better compatibility
+          };
+
           let fileToSend = screenshotFile;
+          
+          // Only compress if it's an image
           if (screenshotFile.type.startsWith('image/')) {
-             fileToSend = await imageCompression(screenshotFile, options);
+             try {
+                 console.log(`Original size: ${screenshotFile.size / 1024 / 1024} MB`);
+                 fileToSend = await imageCompression(screenshotFile, options);
+                 console.log(`Compressed size: ${fileToSend.size / 1024 / 1024} MB`);
+             } catch (compError) {
+                 console.warn("Compression failed, sending original:", compError);
+             }
           }
 
           const formData = new FormData();
@@ -172,20 +196,30 @@ const handleSubmit = async (e: React.FormEvent) => {
           formData.append('paymentScreenshot', fileToSend); 
 
           await addBalanceRequest(formData);
-        } catch (bgError) {
+          
+          setSubmissionStatus('success');
+        } catch (bgError: any) {
           console.error("Background upload failed:", bgError);
-          // Optional: Show error toast here if needed, but UI is already closed
-          toast({ title: 'Upload Failed', description: 'Please try again.', variant: 'destructive' });
+          setSubmissionStatus('error');
+          setShowReceipt(false); // Close receipt to show error
+          toast({ 
+            title: 'Upload Failed', 
+            description: bgError.response?.data?.message || 'Server rejected the file. Try a smaller image.', 
+            variant: 'destructive' 
+          });
         }
-      })();
+      }, 100); // Small delay to allow UI to render 'processing' state
 
     } catch (error: any) { 
-      // Handle immediate validation errors
+      setIsSubmitting(false);
       toast({ title: 'Error', description: error.message, variant: 'destructive' }); 
     } finally { 
-      if (!isAutoPayment) setIsSubmitting(false); 
+       if (!isAutoPayment) {
+         // We keep isSubmitting true if we showed the receipt, otherwise false
+         if (!showReceipt) setIsSubmitting(false);
+       }
     }
-};
+  };
 
   return (
     <MainLayout>
@@ -304,14 +338,14 @@ const handleSubmit = async (e: React.FormEvent) => {
                   <span className="font-bold text-xl text-primary">{currencySymbol}{amount || '0.00'}</span>
                 </div>
                 {paymentMethod && (
-                   <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg flex gap-3">
-                     <Info className="h-5 w-5 text-blue-500 shrink-0" />
-                     <p className="text-xs text-blue-600">
-                       {isAutoPayment 
-                         ? "You will be redirected to a secure gateway. Funds are added instantly."
-                         : "For manual payments, please allow up to 24 hours for verification."}
-                     </p>
-                   </div>
+                    <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg flex gap-3">
+                      <Info className="h-5 w-5 text-blue-500 shrink-0" />
+                      <p className="text-xs text-blue-600">
+                        {isAutoPayment 
+                          ? "You will be redirected to a secure gateway. Funds are added instantly."
+                          : "For manual payments, please allow up to 24 hours for verification."}
+                      </p>
+                    </div>
                 )}
               </CardContent>
             </Card>
@@ -346,35 +380,35 @@ const handleSubmit = async (e: React.FormEvent) => {
                   
                   {/* Payment Details Box */}
                   <div className="rounded-xl border border-border bg-secondary/30 p-4 space-y-4">
-                     {/* QR Code */}
-                     {selectedMethod.qrCode && (
-                       <div className="bg-white p-4 rounded-xl border shadow-sm flex flex-col items-center">
-                         <img 
-                           src={selectedMethod.qrCode} 
-                           alt="QR Code" 
-                           className="w-full max-w-[220px] object-contain"
-                           onError={(e) => (e.target as HTMLImageElement).style.display = 'none'}
-                         />
-                         <div className="mt-3 flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                           <Smartphone className="h-3 w-3" /> Scan with App
-                         </div>
-                       </div>
-                     )}
+                      {/* QR Code */}
+                      {selectedMethod.qrCode && (
+                        <div className="bg-white p-4 rounded-xl border shadow-sm flex flex-col items-center">
+                          <img 
+                            src={selectedMethod.qrCode} 
+                            alt="QR Code" 
+                            className="w-full max-w-[220px] object-contain"
+                            onError={(e) => (e.target as HTMLImageElement).style.display = 'none'}
+                          />
+                          <div className="mt-3 flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            <Smartphone className="h-3 w-3" /> Scan with App
+                          </div>
+                        </div>
+                      )}
 
-                     {/* Text Details */}
-                     <div className="space-y-2">
-                       {selectedMethod.details && Object.entries(selectedMethod.details).map(([key, val]) => (
-                         <div key={key} className="flex items-center justify-between bg-background p-3 rounded-lg border border-border/60 hover:border-primary/30 transition-colors">
-                           <div className="flex flex-col">
-                             <span className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
-                             <span className="font-mono text-sm font-semibold text-foreground/90">{val}</span>
-                           </div>
-                           <Button type="button" variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10 hover:text-primary" onClick={() => handleCopy(val, key)}>
-                             {copied === key ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                           </Button>
-                         </div>
-                       ))}
-                     </div>
+                      {/* Text Details */}
+                      <div className="space-y-2">
+                        {selectedMethod.details && Object.entries(selectedMethod.details).map(([key, val]) => (
+                          <div key={key} className="flex items-center justify-between bg-background p-3 rounded-lg border border-border/60 hover:border-primary/30 transition-colors">
+                            <div className="flex flex-col">
+                              <span className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                              <span className="font-mono text-sm font-semibold text-foreground/90">{val}</span>
+                            </div>
+                            <Button type="button" variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10 hover:text-primary" onClick={() => handleCopy(val, key)}>
+                              {copied === key ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
                   </div>
 
                   {/* Proof of Payment */}
