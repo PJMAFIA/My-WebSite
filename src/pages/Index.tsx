@@ -136,7 +136,7 @@ export default function Index() {
             <h1 className="text-5xl md:text-7xl lg:text-8xl font-black mb-6 leading-[1.1] tracking-tighter">
               Dominate With <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-500 drop-shadow-[0_0_15px_rgba(0,240,255,0.5)]">
-                Elite Software
+                Premium Cheats
               </span>
             </h1>
 
@@ -147,7 +147,7 @@ export default function Index() {
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Button onClick={() => scrollToSection('pricing')} className="h-14 px-8 text-lg font-black bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 border-none shadow-[0_0_30px_rgba(6,182,212,0.4)] rounded-xl w-full sm:w-auto transition-all">
-                View Arsenal <ArrowRight className="h-5 w-5 ml-2" />
+                View Products <ArrowRight className="h-5 w-5 ml-2" />
               </Button>
               <Button asChild variant="outline" className="h-14 px-8 text-lg font-bold bg-black/40 border-white/10 hover:bg-white/5 hover:border-white/20 text-white backdrop-blur-xl rounded-xl w-full sm:w-auto transition-all">
                 <Link to="/register">Create Account</Link>
@@ -163,7 +163,7 @@ export default function Index() {
             <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent" />
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8 divide-x divide-white/5">
               {[
-                { value: '10K+', label: 'Active Users' },
+                { value: '1K+', label: 'Active Users' },
                 { value: '0', label: 'Detections' },
                 { value: '24/7', label: 'Support' },
                 { value: '< 1s', label: 'Delivery' },

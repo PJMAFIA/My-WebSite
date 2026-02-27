@@ -50,7 +50,8 @@ const ProductImageSlider = ({ images, name }: { images: string[]; name: string }
            animate="center"
            exit="exit"
            transition={{ duration: 0.3, ease: 'easeOut' }}
-           className="absolute inset-0 w-full h-full object-cover"
+           // ✅ FIXED: Changed object-cover to object-contain so the whole image shows
+           className="absolute inset-0 w-full h-full object-contain p-2"
          />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
