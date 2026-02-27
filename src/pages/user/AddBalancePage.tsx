@@ -3,14 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Wallet, Upload, Copy, Check, Smartphone,
-  Bitcoin, ArrowLeft, Loader2, Zap, QrCode, CreditCard, Info, AlertCircle
+  Bitcoin, ArrowLeft, Loader2, Zap, QrCode, CreditCard, Info, AlertCircle, ShieldCheck
 } from 'lucide-react';
 import imageCompression from 'browser-image-compression'; 
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuthStore, useBalanceRequestStore } from '@/store';
 import { useToast } from '@/hooks/use-toast';
@@ -104,7 +104,7 @@ export default function AddBalancePage() {
     navigator.clipboard.writeText(text); 
     setCopied(label); 
     setTimeout(() => setCopied(''), 2000); 
-    toast({ description: "Copied to clipboard", className: "h-8" });
+    toast({ description: "Copied to clipboard", className: "bg-emerald-500 text-white border-none" });
   };
   
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -223,140 +223,163 @@ export default function AddBalancePage() {
 
   return (
     <MainLayout>
-      <div className="max-w-6xl mx-auto space-y-6 pb-12 relative">
+      <div className="max-w-6xl mx-auto space-y-6 pb-12 relative z-10">
         
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-2">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="hover:bg-accent">
+        {/* Header - Cyber Upgraded */}
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }} 
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-4 mb-6 bg-black/40 border border-white/[0.05] p-6 rounded-2xl backdrop-blur-xl shadow-lg relative overflow-hidden"
+        >
+          <div className="absolute top-0 left-0 w-1 h-full bg-cyan-500" />
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="hover:bg-white/10 text-gray-400 hover:text-white shrink-0">
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Wallet className="h-6 w-6 text-primary" /> 
+            <h1 className="text-2xl font-black flex items-center gap-3 text-white tracking-tight">
+              <div className="w-10 h-10 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shadow-[0_0_15px_rgba(0,240,255,0.2)]">
+                  <Wallet className="h-5 w-5 text-cyan-400" /> 
+              </div>
               Add Funds
             </h1>
-            <p className="text-sm text-muted-foreground">Securely add money to your wallet.</p>
+            <p className="text-sm text-gray-400 font-medium mt-1">Securely inject capital into your wallet.</p>
           </div>
-        </div>
+        </motion.div>
         
         <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
           {/* 👈 LEFT COLUMN: Configuration */}
           <div className="lg:col-span-7 space-y-6">
             
-            <Card className="border-border/50 shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <CreditCard className="h-5 w-5 text-primary" /> 
-                  1. Payment Configuration
-                </CardTitle>
-                <CardDescription>Select your preferred method and amount</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                
-                {/* Row: Currency & Method */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Currency</Label>
-                    <Select value={currency} onValueChange={(val) => { setCurrency(val); setGlobalCurrency(val as any); }}>
-                      <SelectTrigger className="h-11"><SelectValue placeholder="Currency" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="USD">USD ($)</SelectItem>
-                        <SelectItem value="INR">INR (₹)</SelectItem>
-                        <SelectItem value="PKR">PKR (Rs)</SelectItem>
-                        <SelectItem value="GBP">GBP (£)</SelectItem>
-                        <SelectItem value="BDT">BDT (৳)</SelectItem>
-                        <SelectItem value="NPR">NPR (Rs)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+            <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}>
+                <Card className="bg-black/40 border-white/[0.05] shadow-xl backdrop-blur-xl overflow-hidden relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/[0.02] to-transparent pointer-events-none" />
+                <div className="p-6 border-b border-white/[0.05] flex items-center gap-3">
+                    <CreditCard className="h-5 w-5 text-cyan-400" /> 
+                    <h2 className="text-lg font-bold text-white tracking-wide">1. Payment Configuration</h2>
+                </div>
+                <CardContent className="p-6 space-y-8 relative z-10">
+                    
+                    {/* Row: Currency & Method */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                        <Label className="text-gray-400 font-bold tracking-wider text-xs uppercase">Currency</Label>
+                        <Select value={currency} onValueChange={(val) => { setCurrency(val); setGlobalCurrency(val as any); }}>
+                        <SelectTrigger className="h-12 bg-black/50 border-white/10 text-white hover:border-cyan-500/50 transition-colors rounded-xl font-medium focus:ring-cyan-500/30">
+                            <SelectValue placeholder="Currency" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#0f1219] border-white/10 text-white backdrop-blur-xl">
+                            <SelectItem value="USD" className="focus:bg-cyan-500/20 focus:text-cyan-400">USD ($)</SelectItem>
+                            <SelectItem value="INR" className="focus:bg-cyan-500/20 focus:text-cyan-400">INR (₹)</SelectItem>
+                            <SelectItem value="PKR" className="focus:bg-cyan-500/20 focus:text-cyan-400">PKR (Rs)</SelectItem>
+                            <SelectItem value="GBP" className="focus:bg-cyan-500/20 focus:text-cyan-400">GBP (£)</SelectItem>
+                            <SelectItem value="BDT" className="focus:bg-cyan-500/20 focus:text-cyan-400">BDT (৳)</SelectItem>
+                            <SelectItem value="NPR" className="focus:bg-cyan-500/20 focus:text-cyan-400">NPR (Rs)</SelectItem>
+                        </SelectContent>
+                        </Select>
+                    </div>
 
-                  <div className="space-y-2">
-                    <Label>Payment Method</Label>
-                    <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                      <SelectTrigger className="h-11"><SelectValue placeholder="Select Method" /></SelectTrigger>
-                      <SelectContent>
-                        {paymentMethods.map((method) => (
-                          <SelectItem key={method.id} value={method.id}>
-                            <div className="flex items-center gap-2">
-                              <method.icon className={`h-4 w-4 ${method.isAuto ? 'text-green-500' : 'text-muted-foreground'}`} />
-                              <span className={method.isAuto ? 'font-medium text-green-600' : ''}>{method.name}</span>
-                            </div>
-                          </SelectItem>
+                    <div className="space-y-3">
+                        <Label className="text-gray-400 font-bold tracking-wider text-xs uppercase">Payment Gateway</Label>
+                        <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                        <SelectTrigger className="h-12 bg-black/50 border-white/10 text-white hover:border-cyan-500/50 transition-colors rounded-xl font-medium focus:ring-cyan-500/30">
+                            <SelectValue placeholder="Select Method" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#0f1219] border-white/10 text-white backdrop-blur-xl">
+                            {paymentMethods.map((method) => (
+                            <SelectItem key={method.id} value={method.id} className="focus:bg-cyan-500/10">
+                                <div className="flex items-center gap-3">
+                                <method.icon className={`h-4 w-4 ${method.isAuto ? 'text-emerald-400 drop-shadow-[0_0_5px_rgba(16,185,129,0.5)]' : 'text-cyan-400'}`} />
+                                <span className={method.isAuto ? 'font-bold text-emerald-400' : 'font-medium'}>{method.name}</span>
+                                </div>
+                            </SelectItem>
+                            ))}
+                        </SelectContent>
+                        </Select>
+                    </div>
+                    </div>
+
+                    {/* Amount Section */}
+                    <div className="space-y-4">
+                    <Label className="text-gray-400 font-bold tracking-wider text-xs uppercase flex items-center justify-between">
+                        <span>Deposit Amount</span>
+                        {amount && <span className="text-cyan-400">Selected: {currencySymbol}{amount}</span>}
+                    </Label>
+                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+                        {currentPresets.map((preset) => (
+                        <button 
+                            key={preset} 
+                            type="button" 
+                            onClick={() => setAmount(preset.toString())} 
+                            className={`h-11 rounded-lg text-sm font-bold transition-all duration-200 border ${
+                                amount === preset.toString() 
+                                ? 'bg-cyan-500/20 border-cyan-500 text-cyan-400 shadow-[0_0_15px_rgba(0,240,255,0.2)]' 
+                                : 'bg-white/[0.02] border-white/10 text-gray-400 hover:border-cyan-500/30 hover:text-white'
+                            }`}
+                        >
+                            {currencySymbol}{preset}
+                        </button>
                         ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+                    </div>
+                    <div className="relative mt-2">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-cyan-400 font-black text-lg">{currencySymbol}</div>
+                        <Input 
+                        type="number" 
+                        placeholder="Enter custom amount..." 
+                        value={amount} 
+                        onChange={(e) => setAmount(e.target.value)} 
+                        className="pl-10 h-14 text-lg font-bold bg-black/50 border-white/10 text-white placeholder:text-gray-600 focus-visible:ring-cyan-500/30 rounded-xl" 
+                        min="0.1" 
+                        step="0.01" 
+                        />
+                    </div>
+                    </div>
 
-                {/* Amount Section */}
-                <div className="space-y-3">
-                  <Label>Select Amount</Label>
-                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                    {currentPresets.map((preset) => (
-                      <Button 
-                        key={preset} 
-                        type="button" 
-                        variant={amount === preset.toString() ? 'default' : 'outline'} 
-                        onClick={() => setAmount(preset.toString())} 
-                        className="h-10 text-sm hover:border-primary/50"
-                      >
-                        {currencySymbol}{preset}
-                      </Button>
-                    ))}
-                  </div>
-                  <div className="relative mt-2">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">{currencySymbol}</div>
-                    <Input 
-                      type="number" 
-                      placeholder="Enter custom amount..." 
-                      value={amount} 
-                      onChange={(e) => setAmount(e.target.value)} 
-                      className="pl-8 h-12 text-lg font-medium" 
-                      min="0.1" 
-                      step="0.01" 
-                    />
-                  </div>
-                </div>
-
-              </CardContent>
-            </Card>
+                </CardContent>
+                </Card>
+            </motion.div>
 
             {/* Summary Card */}
-            <Card className="bg-secondary/20 border-border/50">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-muted-foreground">Amount to Add</span>
-                  <span className="font-medium">{currencySymbol}{amount || '0.00'}</span>
-                </div>
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-sm text-muted-foreground">Processing Fee</span>
-                  <span className="text-green-600 font-medium">Free</span>
-                </div>
-                <div className="border-t border-border/50 pt-4 flex items-center justify-between">
-                  <span className="font-semibold text-lg">Total Payable</span>
-                  <span className="font-bold text-xl text-primary">{currencySymbol}{amount || '0.00'}</span>
-                </div>
-                {paymentMethod && (
-                    <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg flex gap-3">
-                      <Info className="h-5 w-5 text-blue-500 shrink-0" />
-                      <p className="text-xs text-blue-600">
-                        {isAutoPayment 
-                          ? "You will be redirected to a secure gateway. Funds are added instantly."
-                          : "For manual payments, please allow up to 24 hours for verification."}
-                      </p>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+                <Card className="bg-gradient-to-br from-white/[0.02] to-transparent border-white/[0.05] backdrop-blur-xl">
+                <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-3 text-gray-400 font-medium">
+                        <span>Amount to Inject</span>
+                        <span className="text-white">{currencySymbol}{amount || '0.00'}</span>
                     </div>
-                )}
-              </CardContent>
-            </Card>
+                    <div className="flex items-center justify-between mb-5 text-gray-400 font-medium">
+                        <span>Network Fee</span>
+                        <span className="text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded text-xs font-bold">0.00%</span>
+                    </div>
+                    <div className="border-t border-white/10 pt-5 flex items-center justify-between">
+                        <span className="font-bold text-lg text-white">Total Payable</span>
+                        <span className="font-black text-3xl text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 drop-shadow-sm">{currencySymbol}{amount || '0.00'}</span>
+                    </div>
+                    {paymentMethod && (
+                        <div className={`mt-6 p-4 rounded-xl border flex gap-4 items-start ${isAutoPayment ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-cyan-500/10 border-cyan-500/20'}`}>
+                        {isAutoPayment ? <ShieldCheck className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" /> : <Info className="h-5 w-5 text-cyan-400 shrink-0 mt-0.5" />}
+                        <p className={`text-sm font-medium leading-relaxed ${isAutoPayment ? 'text-emerald-400' : 'text-cyan-400'}`}>
+                            {isAutoPayment 
+                            ? "Automated Gateway: You will be redirected. Funds are added instantly upon block confirmation."
+                            : "Manual Verification: Please complete the transfer using the details provided, then upload your receipt below."}
+                        </p>
+                        </div>
+                    )}
+                </CardContent>
+                </Card>
+            </motion.div>
 
             {/* Auto Payment Action */}
             <AnimatePresence>
               {isAutoPayment && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, height: 0 }}>
-                   <Button type="submit" variant="gradient" size="lg" className="w-full h-14 text-lg shadow-lg shadow-green-500/20" disabled={isSubmitting || !amount}>
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+                   <Button 
+                    type="submit" 
+                    className="w-full h-14 text-lg font-black tracking-wide bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-black shadow-[0_0_20px_rgba(16,185,129,0.4)] border-none mt-4 rounded-xl transition-all" 
+                    disabled={isSubmitting || !amount}
+                   >
                       {isSubmitting ? <Loader2 className="animate-spin mr-2" /> : <Zap className="mr-2 h-5 w-5" />}
-                      Pay Securely Now
+                      Execute Secure Payment
                    </Button>
                 </motion.div>
               )}
@@ -365,82 +388,97 @@ export default function AddBalancePage() {
           </div>
 
           {/* 👉 RIGHT COLUMN: Details & Action */}
+          <AnimatePresence>
           {selectedMethod && !isAutoPayment && (
-            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="lg:col-span-5 space-y-6">
+            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="lg:col-span-5 space-y-6">
               
-              <Card className="border-border/50 shadow-sm h-full flex flex-col border-t-4 border-t-primary">
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <QrCode className="h-5 w-5 text-primary" />
-                    2. Transfer Details
-                  </CardTitle>
-                  <CardDescription>Scan QR or use account details</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6 flex-1">
+              <Card className="bg-black/40 border-white/[0.05] shadow-xl backdrop-blur-xl h-full flex flex-col relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-cyan-500" />
+                
+                <div className="p-6 border-b border-white/[0.05] flex items-center gap-3">
+                    <QrCode className="h-5 w-5 text-cyan-400" />
+                    <div>
+                        <h2 className="text-lg font-bold text-white tracking-wide leading-tight">2. Transfer Details</h2>
+                        <p className="text-xs text-gray-500 font-medium">Scan QR or copy credentials</p>
+                    </div>
+                </div>
+                
+                <CardContent className="space-y-6 flex-1 p-6">
                   
                   {/* Payment Details Box */}
-                  <div className="rounded-xl border border-border bg-secondary/30 p-4 space-y-4">
+                  <div className="rounded-xl border border-white/10 bg-white/[0.02] p-5 space-y-5">
                       {/* QR Code */}
                       {selectedMethod.qrCode && (
-                        <div className="bg-white p-4 rounded-xl border shadow-sm flex flex-col items-center">
+                        <div className="bg-white p-4 rounded-xl border-4 border-white/10 shadow-[0_0_20px_rgba(255,255,255,0.1)] flex flex-col items-center mx-auto w-fit">
                           <img 
                             src={selectedMethod.qrCode} 
                             alt="QR Code" 
-                            className="w-full max-w-[220px] object-contain"
+                            className="w-full max-w-[180px] object-contain rounded-md"
                             onError={(e) => (e.target as HTMLImageElement).style.display = 'none'}
                           />
-                          <div className="mt-3 flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                            <Smartphone className="h-3 w-3" /> Scan with App
+                          <div className="mt-4 flex items-center gap-2 text-[10px] font-black text-black uppercase tracking-widest bg-gray-100 px-3 py-1.5 rounded-full">
+                            <Smartphone className="h-3.5 w-3.5" /> Scan to Pay
                           </div>
                         </div>
                       )}
 
                       {/* Text Details */}
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         {selectedMethod.details && Object.entries(selectedMethod.details).map(([key, val]) => (
-                          <div key={key} className="flex items-center justify-between bg-background p-3 rounded-lg border border-border/60 hover:border-primary/30 transition-colors">
-                            <div className="flex flex-col">
-                              <span className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
-                              <span className="font-mono text-sm font-semibold text-foreground/90">{val}</span>
+                          <div key={key} className="flex items-center justify-between bg-black/60 p-3.5 rounded-xl border border-white/10 hover:border-cyan-500/40 transition-colors group">
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-[9px] uppercase text-cyan-400 font-black tracking-widest mb-1">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                              <span className="font-mono text-sm font-bold text-white truncate">{val}</span>
                             </div>
-                            <Button type="button" variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10 hover:text-primary" onClick={() => handleCopy(val, key)}>
-                              {copied === key ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                            <Button type="button" variant="ghost" size="icon" className="h-9 w-9 bg-white/5 hover:bg-cyan-500/20 hover:text-cyan-400 text-gray-400 rounded-lg ml-2 shrink-0 transition-all" onClick={() => handleCopy(val, key)}>
+                              {copied === key ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
                             </Button>
                           </div>
                         ))}
                       </div>
                   </div>
 
+                  <div className="w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent my-2" />
+
                   {/* Proof of Payment */}
-                  <div className="space-y-4 pt-2">
-                    <div className="space-y-2">
-                      <Label>Transaction ID / Ref No <span className="text-red-500">*</span></Label>
-                      <Input value={transactionId} onChange={(e) => setTransactionId(e.target.value)} placeholder="e.g. 1234567890" className="h-11" />
+                  <div className="space-y-5">
+                    <div className="space-y-2.5">
+                      <Label className="text-gray-300 font-bold text-xs uppercase tracking-wider">Transaction ID / Ref No <span className="text-red-500">*</span></Label>
+                      <Input 
+                        value={transactionId} 
+                        onChange={(e) => setTransactionId(e.target.value)} 
+                        placeholder="Paste exactly as shown on your receipt..." 
+                        className="h-12 bg-black/50 border-white/10 focus-visible:ring-cyan-500/30 text-white font-mono rounded-xl placeholder:font-sans placeholder:text-gray-600" 
+                      />
                     </div>
 
-                    <div className="space-y-2">
-                      <Label>Upload Screenshot <span className="text-red-500">*</span></Label>
+                    <div className="space-y-2.5">
+                      <Label className="text-gray-300 font-bold text-xs uppercase tracking-wider flex justify-between">
+                          <span>Upload Receipt <span className="text-red-500">*</span></span>
+                          <span className="text-gray-500">JPG/PNG</span>
+                      </Label>
                       <div 
-                        className={`group border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all hover:border-primary/50 hover:bg-primary/5 ${!screenshotFile ? 'border-muted-foreground/20' : 'border-green-500 bg-green-500/5'}`} 
+                        className={`group relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-300 overflow-hidden ${!screenshotFile ? 'border-white/10 hover:border-cyan-500/50 bg-black/40 hover:bg-cyan-500/5' : 'border-emerald-500/50 bg-emerald-500/10'}`} 
                         onClick={() => fileInputRef.current?.click()}
                       >
                         <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" ref={fileInputRef} />
-                        <div className="flex flex-col items-center gap-3">
+                        
+                        <div className="relative z-10 flex flex-col items-center gap-3">
                           {previewUrl ? (
-                            <div className="relative">
-                               <img src={previewUrl} className="max-h-40 rounded-lg shadow-md" />
-                               <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg">
-                                  <p className="text-white text-xs font-medium">Click to Change</p>
+                            <div className="relative w-full flex justify-center">
+                               <img src={previewUrl} className="max-h-48 rounded-lg shadow-2xl object-contain border border-white/10" />
+                               <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg backdrop-blur-sm">
+                                  <p className="text-white text-sm font-bold flex items-center gap-2"><Upload className="h-4 w-4"/> Click to Replace</p>
                                </div>
                             </div>
                           ) : (
                             <>
-                              <div className="h-12 w-12 rounded-full bg-secondary flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
-                                <Upload className="h-6 w-6 text-muted-foreground group-hover:text-primary" />
+                              <div className="h-14 w-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:scale-110 group-hover:bg-cyan-500/10 group-hover:border-cyan-500/30 transition-all shadow-lg">
+                                <Upload className="h-6 w-6 text-gray-400 group-hover:text-cyan-400" />
                               </div>
-                              <div className="space-y-1">
-                                <p className="text-sm font-semibold text-foreground">Click to upload proof</p>
-                                <p className="text-xs text-muted-foreground">Supported: JPG, PNG, JPEG</p>
+                              <div className="space-y-1 mt-2">
+                                <p className="text-sm font-bold text-white group-hover:text-cyan-400 transition-colors">Select Receipt Image</p>
+                                <p className="text-xs text-gray-500 font-medium">Clear screenshots speed up approval</p>
                               </div>
                             </>
                           )}
@@ -451,87 +489,87 @@ export default function AddBalancePage() {
 
                   <Button 
                     type="submit" 
-                    variant="gradient" 
-                    size="lg" 
-                    className="w-full mt-2 h-12 text-base shadow-lg shadow-primary/20" 
+                    className="w-full mt-4 h-14 text-base font-black tracking-wide bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-[0_0_20px_rgba(6,182,212,0.4)] border-none rounded-xl transition-all disabled:opacity-50 disabled:shadow-none" 
                     disabled={isSubmitting || !amount || !transactionId || !screenshotFile}
                   >
                     {isSubmitting ? <Loader2 className="animate-spin mr-2 h-5 w-5" /> : <Check className="mr-2 h-5 w-5" />}
-                    Confirm Payment
+                    Confirm Deposit Request
                   </Button>
 
                 </CardContent>
               </Card>
             </motion.div>
           )}
-
+          </AnimatePresence>
         </form>
 
         {/* 🏆 INSTANT SUCCESS RECEIPT MODAL 🏆 */}
         <AnimatePresence>
           {showReceipt && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
               <motion.div 
-                initial={{ opacity: 0, scale: 0.9 }} 
-                animate={{ opacity: 1, scale: 1 }} 
-                exit={{ opacity: 0, scale: 0.9 }}
-                className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden relative"
+                initial={{ opacity: 0, scale: 0.9, y: 20 }} 
+                animate={{ opacity: 1, scale: 1, y: 0 }} 
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                className="bg-[#0a0d14] rounded-2xl shadow-2xl w-full max-w-md overflow-hidden relative border border-white/10"
               >
                 {/* Header Pattern with Dynamic Status */}
-                <div className={`h-32 flex items-center justify-center relative overflow-hidden transition-colors duration-500 ${submissionStatus === 'success' ? 'bg-green-500' : 'bg-blue-500'}`}>
-                   <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+                <div className={`h-36 flex items-center justify-center relative overflow-hidden transition-colors duration-500 ${submissionStatus === 'success' ? 'bg-emerald-500/20' : 'bg-cyan-500/20'}`}>
+                   <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.1)_1px,transparent_1px)] bg-[size:20px_20px] opacity-20 pointer-events-none" />
+                   
                    <motion.div 
-                     initial={{ scale: 0 }} 
-                     animate={{ scale: 1 }} 
-                     className="h-20 w-20 bg-white rounded-full flex items-center justify-center shadow-lg z-10"
+                     initial={{ scale: 0, rotate: -180 }} 
+                     animate={{ scale: 1, rotate: 0 }} 
+                     transition={{ type: "spring", damping: 15 }}
+                     className={`h-24 w-24 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(0,0,0,0.5)] z-10 border-4 ${submissionStatus === 'success' ? 'bg-emerald-500 border-emerald-400 text-black' : 'bg-black border-cyan-500 text-cyan-400'}`}
                    >
                      {submissionStatus === 'processing' ? (
-                        <Loader2 className="h-10 w-10 text-blue-600 animate-spin" />
+                        <Loader2 className="h-10 w-10 animate-spin" />
                      ) : (
-                        <Check className="h-10 w-10 text-green-600" strokeWidth={3} />
+                        <Check className="h-12 w-12" strokeWidth={3} />
                      )}
                    </motion.div>
                 </div>
 
-                <div className="p-6 text-center space-y-4">
+                <div className="p-8 text-center space-y-6">
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-900">
-                        {submissionStatus === 'processing' ? 'Processing...' : 'Payment Submitted!'}
+                    <h2 className="text-2xl font-black text-white tracking-tight">
+                        {submissionStatus === 'processing' ? 'Encrypting Request...' : 'Deposit Submitted!'}
                     </h2>
-                    <p className="text-gray-500 text-sm">
-                        {submissionStatus === 'processing' ? 'Securely uploading your receipt.' : 'Your request has been sent for review.'}
+                    <p className="text-gray-400 text-sm mt-2 font-medium">
+                        {submissionStatus === 'processing' ? 'Securely uploading your receipt to our servers.' : 'Your request is now pending admin verification.'}
                     </p>
                   </div>
 
                   {/* Receipt Details (Only show when success) */}
                   <AnimatePresence>
                     {submissionStatus === 'success' && (
-                        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-3">
+                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="bg-black/50 rounded-xl p-5 border border-white/[0.05] space-y-4">
                             <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-500">Amount</span>
-                            <span className="font-bold text-gray-900 text-lg">{currencySymbol}{amount}</span>
+                                <span className="text-gray-500 font-bold uppercase tracking-wider text-xs">Amount</span>
+                                <span className="font-black text-white text-lg">{currencySymbol}{amount}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-500">Transaction ID</span>
-                            <span className="font-mono text-gray-700 bg-gray-200 px-2 py-0.5 rounded text-xs">{transactionId}</span>
+                                <span className="text-gray-500 font-bold uppercase tracking-wider text-xs">Ref ID</span>
+                                <span className="font-mono text-cyan-400 bg-cyan-400/10 px-2 py-0.5 rounded text-xs">{transactionId}</span>
                             </div>
-                            <div className="flex justify-between items-center text-sm border-t border-gray-200 pt-3">
-                            <span className="text-gray-500">Method</span>
-                            <span className="font-medium text-gray-900 capitalize">{selectedMethod?.name}</span>
+                            <div className="flex justify-between items-center text-sm border-t border-white/10 pt-4">
+                                <span className="text-gray-500 font-bold uppercase tracking-wider text-xs">Method</span>
+                                <span className="font-bold text-white capitalize">{selectedMethod?.name}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-500">Status</span>
-                            <span className="text-yellow-600 font-bold bg-yellow-100 px-2 py-0.5 rounded-full text-xs">Pending Review</span>
+                                <span className="text-gray-500 font-bold uppercase tracking-wider text-xs">Status</span>
+                                <span className="text-yellow-400 font-bold bg-yellow-400/10 border border-yellow-400/20 px-2.5 py-0.5 rounded-md text-xs animate-pulse">Pending Review</span>
                             </div>
                         </motion.div>
                     )}
                   </AnimatePresence>
 
-                  <div className="flex gap-3 pt-2">
-                    <Button variant="outline" className="flex-1" onClick={() => navigate('/dashboard')} disabled={submissionStatus === 'processing'}>
-                      Go to Dashboard
+                  <div className="flex gap-4 pt-2">
+                    <Button variant="outline" className="flex-1 bg-transparent border-white/10 hover:bg-white/5 text-white h-12 rounded-xl font-bold" onClick={() => navigate('/dashboard')} disabled={submissionStatus === 'processing'}>
+                      Dashboard
                     </Button>
-                    <Button variant="default" className="flex-1 bg-green-600 hover:bg-green-700" onClick={() => navigate('/dashboard')} disabled={submissionStatus === 'processing'}>
+                    <Button variant="default" className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-black h-12 rounded-xl font-black shadow-[0_0_15px_rgba(16,185,129,0.3)]" onClick={() => navigate('/dashboard')} disabled={submissionStatus === 'processing'}>
                       Track Status
                     </Button>
                   </div>

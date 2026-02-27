@@ -77,6 +77,10 @@ export interface Order {
   completedAt?: string;
   licenseKey?: string;
   softwareDownloadLink?: string;
+  // ✅ Logic support for Admin Dashboard display
+  userName?: string;
+  userEmail?: string;
+  productName?: string;
 }
 
 export interface BalanceRequest {
@@ -295,20 +299,39 @@ interface OrderState {
 export const useOrderStore = create<OrderState>((set) => ({
   orders: [],
   isLoading: false,
-  fetchOrders: async (isAdmin = false) => {
+ fetchOrders: async (isAdmin = false) => {
     set({ isLoading: true });
     try {
       const endpoint = isAdmin ? '/orders/admin/all' : '/orders/my-orders';
       const res = await api.get(endpoint);
+      
+      const rawData = res.data.data || [];
+
       set({
-        orders: res.data.data.map((o: any) => ({
-          id: o.id, userId: o.user_id, productId: o.product_id, plan: o.plan,
-          price: Number(o.price), status: o.status, paymentMethod: o.payment_method,
-          transactionId: o.transaction_id, paymentScreenshot: o.payment_screenshot_url,
-          createdAt: o.created_at, completedAt: o.updated_at, licenseKey: o.licenses?.key || o.licenseKey || null, 
-          softwareDownloadLink: o.products?.download_link, currency: o.users?.currency || 'USD' 
+        orders: rawData.map((o: any) => ({
+          id: o.id, 
+          userId: o.user_id, 
+          productId: o.product_id, 
+          plan: o.plan,
+          price: Number(o.price), 
+          status: o.status, 
+          paymentMethod: o.payment_method,
+          transactionId: o.transaction_id, 
+          paymentScreenshot: o.payment_screenshot_url,
+          createdAt: o.created_at, 
+          completedAt: o.updated_at, 
+          licenseKey: o.extracted_license_key || o.licenses?.key || o.license_obj?.key || o.licenseKey || null, 
+          softwareDownloadLink: o.products?.download_link, 
+          // Mapping the manually stitched data from backend
+          currency: o.users?.currency || o.currency || 'USD',
+          userName: o.users?.full_name || 'System User',
+          userEmail: o.users?.email || 'N/A',
+          productName: o.products?.name || 'Unknown Asset'
         })),
       });
+    } catch (error) {
+       console.error("Store Fetch Error:", error);
+       set({ orders: [] }); 
     } finally { set({ isLoading: false }); }
   },
   updateOrderStatus: async (id, status) => { set({ isLoading: true }); try { await api.patch(`/orders/${id}/status`, { status }); set((state) => ({ orders: state.orders.map((o) => o.id === id ? { ...o, status } : o) })); } finally { set({ isLoading: false }); } },
@@ -348,7 +371,7 @@ export const formatPrice = (amountInUsd: number, currency: string = 'USD') => {
     case 'INR': symbol = '₹'; break;
     case 'PKR': symbol = 'Rs. '; break;
     case 'BDT': symbol = '৳'; break;
-    case 'NPR': symbol = 'Rs. '; break; // ✅ FIX: Added NPR Case
+    case 'NPR': symbol = 'Rs. '; break; // ✅ Case for Nepal
   }
   return `${symbol}${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };

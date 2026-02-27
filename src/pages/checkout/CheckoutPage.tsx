@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
-  CreditCard, Upload, CheckCircle, ArrowLeft, Copy, Wallet, QrCode, Loader2, Zap, Tag 
+  CreditCard, Upload, CheckCircle, ArrowLeft, Copy, Wallet, QrCode, Loader2, Zap, Tag, ShieldCheck 
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -13,14 +13,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useCartStore, useAuthStore, formatPlan } from '@/store';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/api'; 
+import { Badge } from '@/components/ui/badge';
 
-type PaymentMethod = 'upi' | 'crypto' | 'bank_transfer' | 'paypal';
+type PaymentMethod = 'upi' | 'crypto' | 'bank_transfer' | 'paypal'; 
 
 const paymentDetails: Record<PaymentMethod, { title: string; details: React.ReactNode }> = {
-  upi: { title: 'UPI Payment', details: (<div className="space-y-4"><div className="w-48 h-48 mx-auto bg-white p-2 rounded-xl flex items-center justify-center"><QrCode className="w-40 h-40 text-black" /></div><div className="text-center"><p className="text-sm text-muted-foreground">UPI ID</p><p className="font-mono font-medium">payments@saasify</p></div></div>) },
-  crypto: { title: 'Cryptocurrency', details: (<div className="space-y-4"><div className="p-4 bg-secondary/50 rounded-xl"><p className="text-sm text-muted-foreground mb-2">USDT (TRC20)</p><code className="text-xs break-all font-mono">TJYJxuM2zN3qo5qVrTbVxV5xqP3sYvHf8m</code></div><p className="text-xs text-muted-foreground text-center">Only send USDT on TRC20 network</p></div>) },
-  bank_transfer: { title: 'Bank Transfer', details: (<div className="space-y-3"><div className="p-3 bg-secondary/50 rounded-lg"><p className="text-xs text-muted-foreground">Account Number</p><p className="font-medium font-mono">1234567890</p></div><div className="p-3 bg-secondary/50 rounded-lg"><p className="text-xs text-muted-foreground">SWIFT Code</p><p className="font-medium font-mono">FNBKUS44XXX</p></div></div>) },
-  paypal: { title: 'PayPal', details: (<div className="space-y-4 text-center"><div className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center"><Wallet className="w-8 h-8 text-blue-600" /></div><div><p className="text-sm text-muted-foreground">Send payment to</p><p className="font-medium">paypal@saasify.com</p></div></div>) },
+  upi: { title: 'UPI Payment', details: (<div className="space-y-4"><div className="w-48 h-48 mx-auto bg-white p-2 rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(255,255,255,0.2)]"><QrCode className="w-40 h-40 text-black" /></div><div className="text-center"><p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">UPI ID</p><p className="font-mono font-medium text-white bg-white/5 py-2 rounded-lg">payments@saasify</p></div></div>) },
+  crypto: { title: 'Cryptocurrency', details: (<div className="space-y-4"><div className="p-4 bg-black/40 border border-white/10 rounded-xl"><p className="text-xs text-cyan-400 font-bold uppercase tracking-wider mb-2">USDT (TRC20)</p><code className="text-xs break-all font-mono text-white select-all">TJYJxuM2zN3qo5qVrTbVxV5xqP3sYvHf8m</code></div><p className="text-xs text-gray-400 text-center font-medium">Only send USDT on TRC20 network</p></div>) },
+  bank_transfer: { title: 'Bank Transfer', details: (<div className="space-y-3"><div className="p-3 bg-black/40 border border-white/10 rounded-lg"><p className="text-[10px] uppercase tracking-widest text-gray-400 mb-1">Account Number</p><p className="font-bold font-mono text-white tracking-wider">1234567890</p></div><div className="p-3 bg-black/40 border border-white/10 rounded-lg"><p className="text-[10px] uppercase tracking-widest text-gray-400 mb-1">SWIFT Code</p><p className="font-bold font-mono text-white tracking-wider">FNBKUS44XXX</p></div></div>) },
+  paypal: { title: 'PayPal', details: (<div className="space-y-4 text-center py-4"><div className="w-20 h-20 mx-auto bg-blue-500/10 border border-blue-500/20 rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(59,130,246,0.2)]"><Wallet className="w-8 h-8 text-blue-400" /></div><div><p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Send payment to</p><p className="font-medium text-white bg-white/5 py-2 rounded-lg">paypal@saasify.com</p></div></div>) },
 };
 
 export default function CheckoutPage() {
@@ -58,7 +59,7 @@ export default function CheckoutPage() {
     try {
       const res = await api.post('/promos/validate', { code: promoCode, cartTotal: basePrice });
       setAppliedPromo({ code: res.data.data.code, discount: res.data.data.discountAmount });
-      toast({ title: 'Promo Applied!', description: `You saved $${res.data.data.discountAmount}` });
+      toast({ title: 'Promo Applied!', description: `You saved $${res.data.data.discountAmount}`, className: "bg-emerald-500 text-white border-none" });
     } catch (error: any) {
       setAppliedPromo(null);
       toast({ title: 'Invalid Code', description: error.response?.data?.message || 'Code invalid', variant: 'destructive' });
@@ -83,7 +84,7 @@ export default function CheckoutPage() {
       if (currentToken) login({ ...user, balance: newBalance }, currentToken);
 
       clearCart();
-      toast({ title: 'Purchase Successful! 🎉', description: 'License key added to dashboard.' });
+      toast({ title: 'Purchase Successful! 🎉', description: 'License key added to dashboard.', className: "bg-emerald-500 text-white border-none" });
       navigate('/dashboard');
     } catch (error: any) {
       console.error(error);
@@ -107,7 +108,7 @@ export default function CheckoutPage() {
 
       await api.post('/orders', formData);
       clearCart();
-      toast({ title: 'Order Placed!', description: 'Waiting for Admin approval.' });
+      toast({ title: 'Order Placed!', description: 'Waiting for Admin approval.', className: "bg-cyan-500 text-black border-none" });
       navigate('/dashboard');
     } catch (error: any) {
       toast({ title: 'Order Failed', description: error.response?.data?.message, variant: 'destructive' });
@@ -118,74 +119,197 @@ export default function CheckoutPage() {
 
   return (
     <MainLayout>
-      <div className="max-w-4xl mx-auto">
-        <Button variant="ghost" className="mb-6" onClick={() => navigate('/shop')}><ArrowLeft className="h-4 w-4 mr-2" /> Back to Shop</Button>
-        <div className="grid lg:grid-cols-3 gap-8">
+      <div className="max-w-5xl mx-auto relative z-10 py-6">
+        
+        <Button variant="ghost" className="mb-6 hover:bg-white/5 text-gray-400 hover:text-white" onClick={() => navigate('/shop')}>
+            <ArrowLeft className="h-4 w-4 mr-2" /> Cancel & Return to Shop
+        </Button>
+        
+        <div className="grid lg:grid-cols-12 gap-8">
           
-          {/* Order Summary */}
-          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="lg:col-span-1">
-            <Card variant="glass" className="sticky top-24">
-              <CardHeader><CardTitle>Order Summary</CardTitle></CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center overflow-hidden">
-                    {selectedProduct.image ? <img src={selectedProduct.image} className="w-full h-full object-cover" /> : <span className="text-2xl font-bold text-primary">{selectedProduct.name.charAt(0)}</span>}
+          {/* Order Summary (Left side on desktop) */}
+          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="lg:col-span-5">
+            <Card className="sticky top-24 bg-black/40 border border-white/[0.05] shadow-2xl backdrop-blur-xl overflow-hidden relative">
+              <div className="absolute top-0 left-0 w-full h-1 bg-cyan-500" />
+              
+              <CardHeader className="border-b border-white/[0.05] pb-4">
+                <CardTitle className="text-xl font-bold text-white flex items-center gap-2">
+                    <ShieldCheck className="h-5 w-5 text-cyan-400" /> Secure Checkout
+                </CardTitle>
+              </CardHeader>
+              
+              <CardContent className="p-6 space-y-6">
+                <div className="flex items-center gap-4 bg-white/[0.02] p-4 rounded-xl border border-white/[0.05]">
+                  <div className="w-16 h-16 rounded-xl bg-black/50 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
+                    {selectedProduct.image ? <img src={selectedProduct.image} className="w-full h-full object-cover opacity-80" /> : <span className="text-2xl font-bold text-cyan-400">{selectedProduct.name.charAt(0)}</span>}
                   </div>
-                  <div><h3 className="font-semibold">{selectedProduct.name}</h3><p className="text-sm text-muted-foreground">{formatPlan(selectedPlan)} Plan</p></div>
+                  <div>
+                    <h3 className="font-bold text-white leading-tight">{selectedProduct.name}</h3>
+                    <Badge className="bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 mt-2 px-2 py-0 font-medium tracking-wide uppercase text-[10px]">
+                        {formatPlan(selectedPlan)} Plan
+                    </Badge>
+                  </div>
                 </div>
                 
                 {/* ✅ PROMO INPUT */}
-                <div className="flex gap-2">
-                    <Input placeholder="Promo Code" value={promoCode} onChange={(e) => setPromoCode(e.target.value.toUpperCase())} disabled={!!appliedPromo} />
-                    {appliedPromo ? (
-                        <Button variant="destructive" onClick={() => { setAppliedPromo(null); setPromoCode(''); }}>X</Button>
-                    ) : (
-                        <Button variant="outline" onClick={handleApplyPromo} disabled={isValidating || !promoCode}>{isValidating ? <Loader2 className="animate-spin h-4 w-4" /> : <Tag className="h-4 w-4" />}</Button>
-                    )}
+                <div className="space-y-2">
+                    <Label className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">Have a Promo Code?</Label>
+                    <div className="flex gap-2 relative">
+                        <Input 
+                            placeholder="Enter code..." 
+                            value={promoCode} 
+                            onChange={(e) => setPromoCode(e.target.value.toUpperCase())} 
+                            disabled={!!appliedPromo} 
+                            className="bg-black/50 border-white/10 text-white focus-visible:ring-cyan-500/30 uppercase font-mono tracking-widest"
+                        />
+                        {appliedPromo ? (
+                            <Button variant="destructive" onClick={() => { setAppliedPromo(null); setPromoCode(''); }} className="bg-red-500/20 text-red-400 hover:bg-red-500/40 w-12 border border-red-500/30">X</Button>
+                        ) : (
+                            <Button variant="outline" onClick={handleApplyPromo} disabled={isValidating || !promoCode} className="bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border-cyan-500/30 w-12 transition-all">
+                                {isValidating ? <Loader2 className="animate-spin h-4 w-4" /> : <Tag className="h-4 w-4" />}
+                            </Button>
+                        )}
+                    </div>
                 </div>
 
-                <div className="border-t border-border pt-4 space-y-2">
-                  <div className="flex justify-between text-sm"><span className="text-muted-foreground">Subtotal</span><span>${basePrice.toFixed(2)}</span></div>
+                <div className="bg-black/30 rounded-xl p-5 border border-white/5 space-y-3">
+                  <div className="flex justify-between text-sm font-medium">
+                      <span className="text-gray-400">Subtotal</span>
+                      <span className="text-white">${basePrice.toFixed(2)}</span>
+                  </div>
                   {appliedPromo && (
-                      <div className="flex justify-between text-sm text-green-500"><span>Discount ({appliedPromo.code})</span><span>-${appliedPromo.discount.toFixed(2)}</span></div>
+                      <div className="flex justify-between text-sm font-bold text-emerald-400">
+                          <span>Discount ({appliedPromo.code})</span>
+                          <span>-${appliedPromo.discount.toFixed(2)}</span>
+                      </div>
                   )}
-                  <div className="flex justify-between font-semibold text-lg pt-2 border-t border-border"><span>Total</span><span className="text-primary">${finalPrice.toFixed(2)}</span></div>
+                  <div className="w-full h-px bg-white/10 my-1" />
+                  <div className="flex justify-between items-end pt-1">
+                      <span className="text-sm font-bold text-gray-300">Total Payable</span>
+                      <span className="text-3xl font-black text-white tracking-tight">${finalPrice.toFixed(2)}</span>
+                  </div>
                 </div>
               </CardContent>
             </Card>
           </motion.div>
 
-          {/* PAYMENT SECTION */}
-          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="lg:col-span-2">
+          {/* PAYMENT SECTION (Right side on desktop) */}
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="lg:col-span-7">
             {canPayWithWallet ? (
-              <Card variant="glass" className="border-primary/50 shadow-[0_0_30px_-5px_rgba(var(--primary),0.3)]">
-                <CardHeader><CardTitle className="flex items-center gap-2"><Zap className="h-6 w-6 text-yellow-400 fill-yellow-400" /> Instant Checkout</CardTitle><CardDescription>Pay securely using your wallet balance.</CardDescription></CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="p-6 bg-primary/10 rounded-xl border border-primary/20 flex flex-col items-center justify-center text-center">
-                    <p className="text-sm text-muted-foreground mb-2">Available Balance</p><p className="text-4xl font-bold text-primary mb-4">${user.balance.toFixed(2)}</p>
-                    <div className="h-px w-full bg-border mb-4" />
-                    <p className="text-sm text-muted-foreground">After purchase: <span className="text-foreground font-medium">${(user.balance - finalPrice).toFixed(2)}</span></p>
+              <Card className="bg-gradient-to-br from-cyan-900/20 to-black/40 border border-cyan-500/30 shadow-[0_0_40px_rgba(0,240,255,0.1)] backdrop-blur-xl h-full flex flex-col justify-center">
+                <CardHeader className="text-center pb-2">
+                    <div className="w-16 h-16 rounded-full bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center mx-auto mb-4 shadow-[0_0_20px_rgba(0,240,255,0.3)]">
+                        <Zap className="h-8 w-8 text-cyan-400 fill-cyan-400" /> 
+                    </div>
+                    <CardTitle className="text-2xl font-black text-white">Instant Deployment</CardTitle>
+                    <CardDescription className="text-gray-400 mt-2 font-medium">Funds available. Key will be delivered instantly.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-8 p-8 flex-1 flex flex-col justify-center">
+                  
+                  <div className="p-6 bg-black/50 rounded-2xl border border-white/5 flex flex-col items-center justify-center text-center relative overflow-hidden">
+                    <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:10px_10px] pointer-events-none" />
+                    
+                    <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mb-2 relative z-10">Wallet Balance</p>
+                    <p className="text-5xl font-black text-white mb-6 relative z-10 tracking-tighter">${user.balance.toFixed(2)}</p>
+                    
+                    <div className="h-px w-full bg-gradient-to-r from-transparent via-white/20 to-transparent mb-6 relative z-10" />
+                    
+                    <div className="flex justify-between w-full max-w-[200px] text-sm relative z-10 font-medium">
+                        <span className="text-gray-400">Remaining after:</span>
+                        <span className="text-emerald-400 font-bold">${(user.balance - finalPrice).toFixed(2)}</span>
+                    </div>
                   </div>
-                  <Button variant="gradient" size="lg" className="w-full text-lg h-14" onClick={handleWalletPurchase} disabled={isSubmitting}>
-                    {isSubmitting ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Processing...</> : `Pay $${finalPrice.toFixed(2)} & Get Key Now`}
+
+                  <Button 
+                    className="w-full text-lg h-14 font-black bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white border-none shadow-[0_0_20px_rgba(0,240,255,0.4)] transition-all rounded-xl mt-auto" 
+                    onClick={handleWalletPurchase} 
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Authorizing...</> : `Confirm Payment of $${finalPrice.toFixed(2)}`}
                   </Button>
                 </CardContent>
               </Card>
             ) : (
-              <Card variant="glass">
-                <CardHeader><CardTitle className="flex items-center gap-2"><CreditCard className="h-5 w-5 text-primary" /> Add Funds / Pay Manually</CardTitle><CardDescription>Your wallet balance ($ {user.balance.toFixed(2)}) is insufficient.</CardDescription></CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="space-y-2"><Label>Payment Method</Label><Select value={paymentMethod} onValueChange={(value: PaymentMethod) => setPaymentMethod(value)}><SelectTrigger><SelectValue placeholder="Select method" /></SelectTrigger><SelectContent><SelectItem value="upi">UPI / PhonePe</SelectItem><SelectItem value="crypto">Crypto</SelectItem><SelectItem value="bank_transfer">Bank</SelectItem><SelectItem value="paypal">PayPal</SelectItem></SelectContent></Select></div>
-                  <div className="p-6 bg-secondary/30 rounded-xl relative group"><div className="absolute top-4 right-4 cursor-pointer opacity-50 hover:opacity-100" onClick={() => navigator.clipboard.writeText("details")}><Copy className="h-4 w-4" /></div><h4 className="font-medium mb-4">{paymentDetails[paymentMethod].title}</h4>{paymentDetails[paymentMethod].details}</div>
-                  <div className="space-y-4">
-                    <div className="space-y-2"><Label htmlFor="transactionId">Transaction ID *</Label><Input id="transactionId" value={transactionId} onChange={(e) => setTransactionId(e.target.value)} /></div>
-                    <div className="space-y-2"><Label htmlFor="screenshot">Payment Screenshot *</Label><div className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:bg-secondary/30" onClick={() => fileInputRef.current?.click()}><input type="file" hidden ref={fileInputRef} accept="image/*" onChange={handleFileUpload} />{screenshot ? <div className="flex items-center justify-center gap-2 text-primary font-medium"><CheckCircle className="h-5 w-5" /> {screenshot.name}</div> : <div className="flex flex-col items-center gap-2 text-muted-foreground"><Upload className="h-8 w-8" /> <span>Click to upload</span></div>}</div></div>
+              <Card className="bg-black/40 border-white/[0.05] shadow-xl backdrop-blur-xl">
+                <CardHeader className="border-b border-white/[0.05] pb-4">
+                    <CardTitle className="flex items-center gap-2 text-xl font-bold text-white">
+                        <CreditCard className="h-5 w-5 text-purple-400" /> Manual Payment
+                    </CardTitle>
+                    <CardDescription className="text-red-400 font-medium bg-red-500/10 px-3 py-1.5 rounded-md inline-block w-fit mt-3 border border-red-500/20">
+                        Insufficient wallet balance (${user.balance.toFixed(2)}).
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="p-6 space-y-8">
+                  
+                  <div className="space-y-3">
+                    <Label className="text-xs text-gray-400 font-bold uppercase tracking-widest">Select Gateway</Label>
+                    <Select value={paymentMethod} onValueChange={(value: PaymentMethod) => setPaymentMethod(value)}>
+                        <SelectTrigger className="h-12 bg-black/50 border-white/10 text-white rounded-xl focus:ring-purple-500/30 font-medium">
+                            <SelectValue placeholder="Select method" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#0f1219] border-white/10 text-white">
+                            <SelectItem value="upi" className="focus:bg-purple-500/20">UPI / PhonePe</SelectItem>
+                            <SelectItem value="crypto" className="focus:bg-purple-500/20">Crypto</SelectItem>
+                            <SelectItem value="bank_transfer" className="focus:bg-purple-500/20">Bank Transfer</SelectItem>
+                            <SelectItem value="paypal" className="focus:bg-purple-500/20">PayPal</SelectItem>
+                        </SelectContent>
+                    </Select>
                   </div>
-                  <Button variant="gradient" size="lg" className="w-full" onClick={handleSubmitManual} disabled={isSubmitting}>{isSubmitting ? <Loader2 className="animate-spin" /> : 'Submit Order'}</Button>
+
+                  <div className="p-6 bg-white/[0.02] border border-white/5 rounded-xl relative group overflow-hidden">
+                      <div className="absolute inset-0 bg-gradient-to-br from-purple-500/[0.02] to-transparent pointer-events-none" />
+                      <div className="absolute top-4 right-4 cursor-pointer text-gray-500 hover:text-purple-400 transition-colors z-10 bg-black/50 p-2 rounded-lg backdrop-blur-sm" onClick={() => { navigator.clipboard.writeText("details"); toast({description: "Details copied"}) }}>
+                          <Copy className="h-4 w-4" />
+                      </div>
+                      <h4 className="font-bold text-white mb-6 relative z-10 flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-purple-500" />
+                          {paymentDetails[paymentMethod].title}
+                      </h4>
+                      <div className="relative z-10">
+                        {paymentDetails[paymentMethod].details}
+                      </div>
+                  </div>
+
+                  <div className="w-full h-px bg-white/[0.05]" />
+
+                  <div className="space-y-6">
+                    <div className="space-y-3">
+                        <Label htmlFor="transactionId" className="text-xs text-gray-400 font-bold uppercase tracking-widest">Transaction ID / Ref No <span className="text-red-500">*</span></Label>
+                        <Input id="transactionId" value={transactionId} onChange={(e) => setTransactionId(e.target.value)} className="h-12 bg-black/50 border-white/10 text-white focus-visible:ring-purple-500/30 rounded-xl font-mono placeholder:font-sans placeholder:text-gray-600" placeholder="Paste ID here..." />
+                    </div>
+                    
+                    <div className="space-y-3">
+                        <Label htmlFor="screenshot" className="text-xs text-gray-400 font-bold uppercase tracking-widest">Payment Screenshot <span className="text-red-500">*</span></Label>
+                        <div className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-300 ${screenshot ? 'border-purple-500/50 bg-purple-500/10' : 'border-white/10 hover:border-purple-500/30 bg-black/30 hover:bg-white/[0.02]'}`} onClick={() => fileInputRef.current?.click()}>
+                            <input type="file" hidden ref={fileInputRef} accept="image/*" onChange={handleFileUpload} />
+                            {screenshot ? (
+                                <div className="flex items-center justify-center gap-2 text-purple-400 font-bold">
+                                    <CheckCircle className="h-5 w-5" /> {screenshot.name}
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center gap-3 text-gray-500 group-hover:text-gray-300">
+                                    <div className="h-12 w-12 rounded-full bg-white/5 flex items-center justify-center">
+                                        <Upload className="h-5 w-5 text-gray-400" /> 
+                                    </div>
+                                    <span className="font-medium text-sm">Click to browse files</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                  </div>
+
+                  <Button 
+                    className="w-full h-14 text-base font-black bg-purple-600 hover:bg-purple-500 text-white shadow-[0_0_20px_rgba(168,85,247,0.3)] border-none rounded-xl transition-all disabled:opacity-50" 
+                    onClick={handleSubmitManual} 
+                    disabled={isSubmitting || !transactionId || !screenshot}
+                  >
+                    {isSubmitting ? <><Loader2 className="animate-spin mr-2 h-5 w-5" /> Submitting Data...</> : 'Submit Payment For Verification'}
+                  </Button>
                 </CardContent>
               </Card>
             )}
           </motion.div>
+
         </div>
       </div>
     </MainLayout>
