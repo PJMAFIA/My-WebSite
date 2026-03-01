@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Package, Key, Copy, Check, Download, PlayCircle, Loader2, Search, Terminal
+  Package, Key, Copy, Check, Download, PlayCircle, Loader2, Search, Terminal, Send
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuthStore, useOrderStore, useProductStore, formatPlan } from '@/store';
 import { useToast } from '@/hooks/use-toast';
 import { ResetRequestModal } from '@/components/ResetRequestModal';
+import api from '@/lib/api';
 
 export default function MyProductsPage() {
   const { user } = useAuthStore(); 
@@ -21,7 +22,9 @@ export default function MyProductsPage() {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   
-  // Reset Modal State
+  const [uidInputs, setUidInputs] = useState<Record<string, string>>({});
+  const [isSubmittingUid, setIsSubmittingUid] = useState<string | null>(null);
+
   const [resetModalOpen, setResetModalOpen] = useState(false);
   const [selectedOrderForReset, setSelectedOrderForReset] = useState<any>(null);
 
@@ -40,11 +43,30 @@ export default function MyProductsPage() {
   const copyToClipboard = (key: string) => {
     navigator.clipboard.writeText(key);
     setCopiedKey(key);
-    toast({ title: 'Copied!', description: 'License key copied to clipboard.', className: "bg-emerald-500 text-white border-none" });
+    toast({ title: 'Copied!', description: 'Copied to clipboard.', className: "bg-emerald-500 text-white border-none" });
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
   const getProduct = (productId: string) => products.find(p => p.id === productId);
+
+  const handleSendUID = async (orderId: string) => {
+      const uid = uidInputs[orderId];
+      if (!uid || uid.trim() === '') {
+          toast({ title: "UID Required", description: "Please enter your UID before sending.", variant: "destructive" });
+          return;
+      }
+
+      setIsSubmittingUid(orderId);
+      try {
+          await api.post('/orders/submit-uid', { orderId, uid });
+          toast({ title: "UID Sent!", description: "Admin has received your UID for activation.", className: "bg-emerald-500 text-white border-none" });
+          await fetchOrders(); 
+      } catch (error: any) {
+          toast({ title: "Failed to send", description: error.response?.data?.message || "An error occurred.", variant: "destructive" });
+      } finally {
+          setIsSubmittingUid(null);
+      }
+  };
 
   if (!user) return null;
 
@@ -52,7 +74,6 @@ export default function MyProductsPage() {
     <MainLayout>
       <div className="space-y-8 relative z-10">
         
-        {/* Header - Cyber Upgraded */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }} 
           animate={{ opacity: 1, y: 0 }}
@@ -82,7 +103,6 @@ export default function MyProductsPage() {
             </div>
         </motion.div>
 
-        {/* Content Area */}
         <AnimatePresence mode="wait">
             {isLoading && orders.length === 0 ? (
             <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center py-32 gap-4">
@@ -107,20 +127,27 @@ export default function MyProductsPage() {
                 const product = getProduct(order.productId);
                 if (!product) return null;
                 
-                // ✅ CRITICAL FIX: Direct extraction mapped perfectly from Zustand
-                const actualLicenseKey = order.licenseKey; 
+                const rawOrder = order as any;
+                const actualLicenseKey = rawOrder.license?.key || rawOrder.licenses?.key || rawOrder.licenseKey;
+                const isBypassEmulator = product.name === 'Bypass Emulator';
+
+                // ✅ 3-STATE UID LOGIC
+                const hasVerifiedUid = order.transactionId?.includes('UID_VERIFIED:');
+                const hasPendingUid = !hasVerifiedUid && order.transactionId?.includes('UID:');
+                
+                let savedUid = null;
+                if (hasVerifiedUid) savedUid = order.transactionId.split('UID_VERIFIED:')[1].trim();
+                else if (hasPendingUid) savedUid = order.transactionId.split('UID:')[1].trim();
 
                 return (
                     <motion.div key={order.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
                     <Card className="overflow-hidden bg-black/40 border-white/[0.05] hover:border-purple-500/30 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_30px_rgba(168,85,247,0.1)] backdrop-blur-xl group relative">
-                        {/* Glow effect on hover */}
                         <div className="absolute inset-0 bg-gradient-to-r from-purple-500/0 via-purple-500/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none z-0" />
                         <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-purple-500 to-cyan-500 opacity-50 group-hover:opacity-100 transition-opacity" />
 
                         <CardContent className="p-0 relative z-10">
                         <div className="flex flex-col lg:flex-row p-6 md:p-8 gap-8">
                             
-                            {/* Image Box */}
                             <div className="w-24 h-24 md:w-32 md:h-32 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0 overflow-hidden shadow-inner group-hover:border-purple-500/30 transition-colors">
                                 {product.image ? (
                                     <img src={product.image} alt={product.name} className="w-full h-full object-contain p-3 group-hover:scale-110 transition-transform duration-500"/>
@@ -129,10 +156,7 @@ export default function MyProductsPage() {
                                 )}
                             </div>
 
-                            {/* Details & Actions */}
                             <div className="flex-1 flex flex-col justify-between gap-6">
-                            
-                            {/* Top Row: Info & Buttons */}
                             <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                                 <div>
                                 <h3 className="text-2xl font-black text-white tracking-tight group-hover:text-purple-400 transition-colors">{product.name}</h3>
@@ -146,48 +170,85 @@ export default function MyProductsPage() {
                                 </div>
                                 
                                 <div className="flex flex-wrap items-center gap-3">
-                                <Button 
-                                    onClick={() => window.open(order.softwareDownloadLink || product.softwareDownloadLink, '_blank')}
-                                    className="bg-purple-600 hover:bg-purple-500 text-white shadow-[0_0_15px_rgba(168,85,247,0.4)] border-none font-bold"
-                                >
+                                <Button onClick={() => window.open(order.softwareDownloadLink || product.softwareDownloadLink, '_blank')} className="bg-purple-600 hover:bg-purple-500 text-white shadow-[0_0_15px_rgba(168,85,247,0.4)] border-none font-bold">
                                     <Download className="h-4 w-4 mr-2" /> Download
                                 </Button>
-                                <Button 
-                                    variant="outline" 
-                                    onClick={() => window.open(product.tutorialVideoLink, '_blank')}
-                                    className="bg-white/5 border-white/10 hover:bg-white/10 hover:text-white text-gray-300"
-                                >
+                                <Button variant="outline" onClick={() => window.open(product.tutorialVideoLink, '_blank')} className="bg-white/5 border-white/10 hover:bg-white/10 hover:text-white text-gray-300">
                                     <PlayCircle className="h-4 w-4 mr-2" /> Tutorial
                                 </Button>
-                                <Button 
-                                    variant="outline" 
-                                    onClick={() => { setSelectedOrderForReset(order); setResetModalOpen(true); }}
-                                    className="bg-white/5 border-white/10 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 text-gray-300 transition-colors"
-                                >
-                                    <Key className="h-4 w-4 mr-2" /> Reset HWID
-                                </Button>
+                                {!isBypassEmulator && (
+                                  <Button variant="outline" onClick={() => { setSelectedOrderForReset(order); setResetModalOpen(true); }} className="bg-white/5 border-white/10 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 text-gray-300 transition-colors">
+                                      <Key className="h-4 w-4 mr-2" /> Reset HWID
+                                  </Button>
+                                )}
                                 </div>
                             </div>
 
-                            {/* License Terminal Box */}
-                            <div className="relative mt-auto">
-                                <div className="absolute -top-2.5 left-4 bg-black px-2 text-[10px] font-bold tracking-widest text-purple-400 uppercase z-10 flex items-center gap-1">
-                                    <Terminal className="h-3 w-3" /> License Key
+                            {/* CUSTOM UI FOR BYPASS EMULATOR OR NORMAL TERMINAL */}
+                            {isBypassEmulator ? (
+                                hasVerifiedUid ? (
+                                    /* ✅ State 3: Admin Accepted UID */
+                                    <div className="relative mt-auto">
+                                        <div className="absolute -top-2.5 left-4 bg-black px-2 text-[10px] font-bold tracking-widest text-emerald-400 uppercase z-10 flex items-center gap-1">
+                                            <Check className="h-3 w-3" /> System Activated
+                                        </div>
+                                        <div className="bg-[#0a0d14] p-4 rounded-xl border border-emerald-500/30 flex items-center justify-between gap-4 group/terminal">
+                                            <div className="flex-1 font-mono text-sm md:text-base text-emerald-400 break-all select-all font-bold">
+                                                UID: {savedUid}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : hasPendingUid ? (
+                                    /* ✅ State 2: UID Submitted, Pending */
+                                    <div className="relative mt-auto">
+                                        <div className="absolute -top-2.5 left-4 bg-black px-2 text-[10px] font-bold tracking-widest text-yellow-400 uppercase z-10 flex items-center gap-1">
+                                            <Loader2 className="h-3 w-3 animate-spin" /> Pending Activation
+                                        </div>
+                                        <div className="bg-[#0a0d14] p-4 rounded-xl border border-yellow-500/30 flex items-center justify-between gap-4 group/terminal">
+                                            <div className="flex-1 font-mono text-sm md:text-base text-yellow-400 break-all select-all font-bold">
+                                                {savedUid}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    /* ✅ State 1: Needs UID Input */
+                                    <div className="relative mt-auto">
+                                        <div className="absolute -top-2.5 left-4 bg-black px-2 text-[10px] font-bold tracking-widest text-cyan-400 uppercase z-10 flex items-center gap-1">
+                                            <Send className="h-3 w-3" /> Action Required: Submit UID
+                                        </div>
+                                        <div className="bg-[#0a0d14] p-2 pl-4 rounded-xl border border-cyan-500/30 flex items-center justify-between gap-3 group/terminal">
+                                            <Input 
+                                                placeholder="Paste your UID here..." 
+                                                value={uidInputs[order.id] || ''} 
+                                                onChange={(e) => setUidInputs(prev => ({...prev, [order.id]: e.target.value}))}
+                                                className="border-none bg-transparent text-white font-mono h-10 shadow-none focus-visible:ring-0 px-0"
+                                            />
+                                            <Button 
+                                                onClick={() => handleSendUID(order.id)}
+                                                disabled={isSubmittingUid === order.id}
+                                                className="bg-cyan-600 hover:bg-cyan-500 text-black font-bold shrink-0 transition-all shadow-[0_0_15px_rgba(6,182,212,0.3)]"
+                                            >
+                                                {isSubmittingUid === order.id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send to Admin"}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )
+                            ) : (
+                                /* STANDARD TERMINAL FOR NORMAL PRODUCTS */
+                                <div className="relative mt-auto">
+                                    <div className="absolute -top-2.5 left-4 bg-black px-2 text-[10px] font-bold tracking-widest text-purple-400 uppercase z-10 flex items-center gap-1">
+                                        <Terminal className="h-3 w-3" /> License Key
+                                    </div>
+                                    <div className="bg-[#0a0d14] p-4 rounded-xl border border-white/10 flex items-center justify-between gap-4 group/terminal hover:border-purple-500/50 transition-colors">
+                                        <div className="flex-1 font-mono text-sm md:text-base text-gray-300 break-all select-all">
+                                            {actualLicenseKey || <span className="text-yellow-500 animate-pulse">Processing License...</span>}
+                                        </div>
+                                        <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0 bg-white/5 hover:bg-purple-500/20 hover:text-purple-400 text-gray-400 rounded-lg transition-all" onClick={() => actualLicenseKey && copyToClipboard(actualLicenseKey)}>
+                                            {copiedKey === actualLicenseKey ? <Check className="h-5 w-5 text-emerald-400" /> : <Copy className="h-5 w-5" />}
+                                        </Button>
+                                    </div>
                                 </div>
-                                <div className="bg-[#0a0d14] p-4 rounded-xl border border-white/10 flex items-center justify-between gap-4 group/terminal hover:border-purple-500/50 transition-colors">
-                                <div className="flex-1 font-mono text-sm md:text-base text-gray-300 break-all select-all">
-                                    {actualLicenseKey || <span className="text-yellow-500 animate-pulse">Processing License...</span>}
-                                </div>
-                                <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    className="h-10 w-10 shrink-0 bg-white/5 hover:bg-purple-500/20 hover:text-purple-400 text-gray-400 rounded-lg transition-all" 
-                                    onClick={() => actualLicenseKey && copyToClipboard(actualLicenseKey)}
-                                >
-                                    {copiedKey === actualLicenseKey ? <Check className="h-5 w-5 text-emerald-400" /> : <Copy className="h-5 w-5" />}
-                                </Button>
-                                </div>
-                            </div>
+                            )}
 
                             </div>
                         </div>
@@ -200,7 +261,6 @@ export default function MyProductsPage() {
             )}
         </AnimatePresence>
 
-        {/* Modal */}
         {selectedOrderForReset && (
           <ResetRequestModal 
             isOpen={resetModalOpen}

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
-  History, Check, X, Eye, Loader2, Image as ImageIcon 
+  History, Check, X, Eye, Loader2, Image as ImageIcon, Send 
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ import {
   formatPlan
 } from '@/store';
 import { useToast } from '@/hooks/use-toast';
+import api from '@/lib/api';
 
 export default function AdminOrdersPage() {
   const navigate = useNavigate();
@@ -88,7 +89,29 @@ export default function AdminOrdersPage() {
     }
   };
 
+  // 4. Handle UID Actions
+  const handleUidAction = async (orderId: string, action: 'accept' | 'reject') => {
+    setProcessingId(orderId);
+    try {
+        await api.post('/orders/admin/handle-uid', { orderId, action });
+        toast({
+            title: action === 'accept' ? 'UID Accepted' : 'UID Rejected',
+            description: action === 'accept' ? 'User notified of activation.' : 'UID cleared and user notified to retry.',
+            className: action === 'accept' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
+        });
+        await fetchOrders(true);
+        setSelectedOrder(null);
+    } catch (error: any) {
+        toast({ title: 'Error', description: error.response?.data?.message || 'Action failed', variant: 'destructive' });
+    } finally {
+        setProcessingId(null);
+    }
+  };
+
   const selectedOrderData = orders.find(o => o.id === selectedOrder);
+  const selectedProduct = selectedOrderData ? getProduct(selectedOrderData.productId) : null;
+  const isBypassEmulator = selectedProduct?.name === 'Bypass Emulator';
+  const submittedUid = selectedOrderData?.transactionId?.includes('UID:') ? selectedOrderData.transactionId.split('UID:')[1].trim() : null;
 
   return (
     <MainLayout>
@@ -161,6 +184,10 @@ export default function AdminOrdersPage() {
                             <Badge variant={order.status as any}>
                               {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
                             </Badge>
+                            {/* UID Badge Indicator */}
+                            {product?.name === 'Bypass Emulator' && order.transactionId?.includes('UID:') && (
+                               <Badge className="ml-2 bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px]">UID Action Required</Badge>
+                            )}
                           </td>
                           <td className="py-4 px-6 text-muted-foreground">{formatDate(order.createdAt)}</td>
                           <td className="py-4 px-6">
@@ -192,7 +219,7 @@ export default function AdminOrdersPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground">Product</p>
-                    <p className="font-medium">{getProduct(selectedOrderData.productId)?.name}</p>
+                    <p className="font-medium">{selectedProduct?.name}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Amount</p>
@@ -207,12 +234,43 @@ export default function AdminOrdersPage() {
                     <code className="text-sm">{selectedOrderData.transactionId}</code>
                   </div>
                   
-                  {selectedOrderData.licenseKey && (
+                  {selectedOrderData.licenseKey && !isBypassEmulator && (
                     <div className="col-span-2 mt-2 p-3 bg-secondary/30 rounded border border-primary/20">
                       <p className="text-sm text-primary mb-1">Assigned License Key</p>
                       <code className="text-sm font-mono break-all">{selectedOrderData.licenseKey}</code>
                     </div>
                   )}
+
+                  {/* CUSTOM UID REVIEW BOX FOR ADMIN */}
+                  {isBypassEmulator && submittedUid && selectedOrderData.status === 'completed' && (
+                     <div className="col-span-2 mt-4 p-4 bg-[#0a0d14] rounded-xl border border-cyan-500/30">
+                        <div className="flex items-center gap-2 text-cyan-400 mb-2">
+                           <Send className="h-4 w-4" />
+                           <p className="font-bold uppercase tracking-widest text-xs">User UID Submitted</p>
+                        </div>
+                        <code className="block w-full p-2 bg-black border border-white/10 rounded font-mono text-sm text-white break-all mb-4">
+                           {submittedUid}
+                        </code>
+                        <div className="flex gap-3">
+                           <Button 
+                              className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
+                              onClick={() => handleUidAction(selectedOrderData.id, 'accept')}
+                              disabled={!!processingId}
+                           >
+                              {processingId === selectedOrderData.id ? <Loader2 className="animate-spin h-4 w-4" /> : "Accept UID & Notify User"}
+                           </Button>
+                           <Button 
+                              variant="destructive"
+                              className="flex-1"
+                              onClick={() => handleUidAction(selectedOrderData.id, 'reject')}
+                              disabled={!!processingId}
+                           >
+                              {processingId === selectedOrderData.id ? <Loader2 className="animate-spin h-4 w-4" /> : "Reject UID"}
+                           </Button>
+                        </div>
+                     </div>
+                  )}
+
                 </div>
 
                 {/* Screenshot Display */}
@@ -232,7 +290,7 @@ export default function AdminOrdersPage() {
                   </div>
                 )}
 
-                {/* Actions */}
+                {/* Standard Payment Actions */}
                 {selectedOrderData.status === 'pending' && (
                   <div className="flex gap-3 pt-4">
                     <Button 
@@ -242,7 +300,7 @@ export default function AdminOrdersPage() {
                       disabled={!!processingId}
                     >
                       {processingId === selectedOrderData.id ? <Loader2 className="animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
-                      Approve
+                      Approve Order
                     </Button>
                     <Button 
                       variant="destructive" 
@@ -251,7 +309,7 @@ export default function AdminOrdersPage() {
                       disabled={!!processingId}
                     >
                       {processingId === selectedOrderData.id ? <Loader2 className="animate-spin" /> : <X className="h-4 w-4 mr-2" />}
-                      Reject
+                      Reject Order
                     </Button>
                   </div>
                 )}

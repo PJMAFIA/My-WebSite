@@ -15,7 +15,7 @@ import api from '@/lib/api';
 type PlanType = '1_day' | '7_days' | '30_days' | 'lifetime';
 type CurrencyType = 'USD' | 'GBP' | 'INR' | 'PKR' | 'BDT' | 'NPR';
 
-// --- 🌟 Dedicated Slider Component (Upgraded UI) ---
+// --- 🌟 Dedicated Slider Component ---
 const ProductImageSlider = ({ images, name }: { images: string[]; name: string }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState(0);
@@ -35,7 +35,6 @@ const ProductImageSlider = ({ images, name }: { images: string[]; name: string }
 
   return (
     <div className="relative w-full h-52 overflow-hidden bg-black/30 group">
-      {/* Cyber grid overlay */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:20px_20px] opacity-20 pointer-events-none z-10" />
 
       <AnimatePresence initial={false} custom={direction}>
@@ -50,7 +49,6 @@ const ProductImageSlider = ({ images, name }: { images: string[]; name: string }
            animate="center"
            exit="exit"
            transition={{ duration: 0.3, ease: 'easeOut' }}
-           // ✅ FIXED: Changed object-cover to object-contain so the whole image shows
            className="absolute inset-0 w-full h-full object-contain p-2"
          />
         ) : (
@@ -62,7 +60,6 @@ const ProductImageSlider = ({ images, name }: { images: string[]; name: string }
         )}
       </AnimatePresence>
 
-      {/* Bottom fade */}
       <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-black/80 to-transparent z-20 pointer-events-none" />
 
       {hasMultiple && (
@@ -92,8 +89,14 @@ export default function ShopPage() {
   const [selectedPlans, setSelectedPlans] = useState<Record<string, PlanType>>({});
   const [claimingTrial, setClaimingTrial] = useState<string | null>(null);
   
-  // ✅ NEW: State for tracking active/expired trials
   const [userTrials, setUserTrials] = useState<any[]>([]);
+
+  // Helper to get raw price
+  const getPrice = (product: any, plan: string): number => {
+    if (currency === 'USD') return product.prices[plan] || 0;
+    if (product.currency_prices?.[currency]?.[plan]) return product.currency_prices[currency][plan];
+    return 0;
+  };
 
   useEffect(() => {
     fetchProducts();
@@ -102,13 +105,19 @@ export default function ShopPage() {
     }
   }, [fetchProducts, isAuthenticated]);
 
+  // ✅ FIXED: Dynamically set the default plan to the first one that is NOT $0
   useEffect(() => {
     const initial: Record<string, PlanType> = {};
-    products.forEach(p => { initial[p.id] = '30_days'; });
+    const planOptions: PlanType[] = ['1_day', '7_days', '30_days', 'lifetime'];
+    
+    products.forEach(p => { 
+        // Find the first plan that actually has a price > 0
+        const firstAvailablePlan = planOptions.find(plan => getPrice(p, plan) > 0);
+        initial[p.id] = firstAvailablePlan || '30_days'; // Fallback just in case
+    });
     setSelectedPlans(initial);
-  }, [products]);
+  }, [products, currency]);
 
-  // ✅ NEW: Fetch user orders to check for existing trials
   const fetchUserTrials = async () => {
     try {
       const response = await api.get('/orders/my-orders');
@@ -121,7 +130,6 @@ export default function ShopPage() {
     }
   };
 
-  // ✅ NEW: Logic to check if a specific product trial is still active
   const isTrialActive = (productId: string, trialHours: number) => {
     const trialOrder = userTrials.find(t => t.product_id === productId);
     if (!trialOrder) return false;
@@ -133,17 +141,13 @@ export default function ShopPage() {
     return currentTime < expiryTime;
   };
 
-  // ✅ NEW: Logic to check if user has already used their trial (Active or Expired)
   const hasUsedTrial = (productId: string) => {
     return userTrials.some(t => t.product_id === productId);
   };
 
-  // Safe search logic
   const filteredProducts = products?.filter((p) => {
     const searchLower = search.toLowerCase();
-    const nameMatch = p?.name?.toLowerCase().includes(searchLower);
-    const descMatch = p?.description?.toLowerCase().includes(searchLower);
-    return nameMatch || descMatch;
+    return p?.name?.toLowerCase().includes(searchLower) || p?.description?.toLowerCase().includes(searchLower);
   }) || [];
 
   const handleBuyNow = (productId: string) => {
@@ -163,7 +167,7 @@ export default function ShopPage() {
         const response = await api.post('/orders/claim-trial', { productId });
         if (response.data.status === 'success') {
             toast({ title: "Success!", description: "Free trial claimed. Check your dashboard.", className: "bg-green-500 text-white" });
-            fetchUserTrials(); // Refresh trials
+            fetchUserTrials(); 
             navigate('/dashboard');
         }
     } catch (error: any) {
@@ -182,12 +186,6 @@ export default function ShopPage() {
       case 'NPR': return `Rs. ${price.toLocaleString()}`;
       default: return `$${price.toFixed(2)}`;
     }
-  };
-
-  const getPrice = (product: any, plan: string): number => {
-    if (currency === 'USD') return product.prices[plan] || 0;
-    if (product.currency_prices?.[currency]?.[plan]) return product.currency_prices[currency][plan];
-    return 0;
   };
 
   return (
@@ -273,6 +271,9 @@ export default function ShopPage() {
                 const trialIsActive = isTrialActive(product.id, prod.trial_hours);
                 const trialAlreadyUsed = hasUsedTrial(product.id);
 
+                // ✅ Check if the product has ANY valid plans
+                const hasValidPlans = (['1_day', '7_days', '30_days', 'lifetime'] as PlanType[]).some(plan => getPrice(product, plan) > 0);
+
                 return (
                   <motion.div
                     key={product.id}
@@ -321,14 +322,18 @@ export default function ShopPage() {
                       <Select
                         value={selectedPlan}
                         onValueChange={(val: PlanType) => setSelectedPlans((prev) => ({ ...prev, [product.id]: val }))}
+                        disabled={!hasValidPlans}
                       >
                         <SelectTrigger className="h-10 text-sm bg-black/40 border-white/[0.08] text-white hover:border-cyan-400/30 transition-colors duration-200 rounded-lg">
-                          <SelectValue />
+                          <SelectValue placeholder={hasValidPlans ? "" : "Unavailable"} />
                         </SelectTrigger>
                         <SelectContent className="bg-[#0f1219] border-white/[0.08] text-white backdrop-blur-xl">
                           {(['1_day', '7_days', '30_days', 'lifetime'] as PlanType[]).map((plan) => {
                             const p = getPrice(product, plan);
-                            if (p === 0 && currency !== 'USD') return null;
+                            
+                            // ✅ FIXED: Hide plan entirely from the list if price is 0
+                            if (p <= 0) return null; 
+                            
                             return (
                               <SelectItem key={plan} value={plan} className="text-sm focus:text-cyan-400 focus:bg-cyan-400/10 cursor-pointer">
                                 {formatPlan(plan)} — {formatPrice(p)}
@@ -345,17 +350,18 @@ export default function ShopPage() {
                       <div className="flex flex-col gap-3 mt-auto">
                         <div className="flex flex-col">
                           <span className="text-2xl font-black tracking-tight text-white drop-shadow-md">
-                            {formatPrice(currentPrice)}
+                            {hasValidPlans ? formatPrice(currentPrice) : "N/A"}
                           </span>
                           <span className="text-xs text-gray-500 font-medium mt-0.5 uppercase tracking-wider">
-                            {formatPlan(selectedPlan)} plan
+                            {hasValidPlans ? `${formatPlan(selectedPlan)} plan` : "Currently Out of Stock"}
                           </span>
                         </div>
 
                         <div className="flex flex-col gap-2">
                           <Button
                             onClick={() => handleBuyNow(product.id)}
-                            className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white w-full h-10 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all hover:shadow-[0_0_15px_rgba(6,182,212,0.4)] border-none"
+                            disabled={!hasValidPlans}
+                            className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white w-full h-10 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all hover:shadow-[0_0_15px_rgba(6,182,212,0.4)] border-none disabled:opacity-50 disabled:shadow-none"
                           >
                             <ShoppingBag size={15} />
                             Buy Now
