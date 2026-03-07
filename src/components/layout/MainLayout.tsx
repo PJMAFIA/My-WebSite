@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LayoutDashboard, ShoppingBag, Package, History, LogOut, Menu, 
-  X, User, Shield, Wallet, Plus, Globe, Key, Tag, Megaphone, ArrowRight
+  X, User, Shield, Wallet, Plus, Globe, Key, Tag, Megaphone, ArrowRight, Languages
 } from 'lucide-react';
 import { useAuthStore, useBalanceRequestStore } from '@/store';
 import { Button } from '@/components/ui/button';
@@ -94,6 +94,51 @@ export function MainLayout({ children }: LayoutProps) {
     return `${symbol}${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
+  // ✅ Custom Global Language Selector Logic
+  const LanguageSelector = () => {
+    const [currentLang, setCurrentLang] = useState('en');
+
+    useEffect(() => {
+      const match = document.cookie.match(/(^|;) ?googtrans=([^;]*)(;|$)/);
+      if (match) {
+        const lang = match[2].split('/').pop();
+        if (lang) setCurrentLang(lang);
+      }
+    }, []);
+
+    const handleLanguageChange = (langCode: string) => {
+      setCurrentLang(langCode);
+      const gtSelect = document.querySelector('.goog-te-combo') as HTMLSelectElement;
+      if (gtSelect) {
+        gtSelect.value = langCode;
+        gtSelect.dispatchEvent(new Event('change'));
+      }
+    };
+
+    return (
+      <div className="flex items-center gap-2 px-2">
+        <Languages className="h-4 w-4 text-purple-400" />
+        <Select value={currentLang} onValueChange={handleLanguageChange}>
+          <SelectTrigger className="h-8 w-[100px] border-none shadow-none bg-transparent focus:ring-0 px-1 text-xs font-medium text-muted-foreground hover:text-purple-400 transition-colors">
+            <SelectValue placeholder="English" />
+          </SelectTrigger>
+          <SelectContent className="bg-black/90 border border-white/10 backdrop-blur-xl z-[9999]">
+            <SelectItem value="en" className="focus:bg-purple-500/20 focus:text-purple-400">English</SelectItem>
+            <SelectItem value="es" className="focus:bg-purple-500/20 focus:text-purple-400">Español</SelectItem>
+            <SelectItem value="fr" className="focus:bg-purple-500/20 focus:text-purple-400">Français</SelectItem>
+            <SelectItem value="de" className="focus:bg-purple-500/20 focus:text-purple-400">Deutsch</SelectItem>
+            <SelectItem value="zh-CN" className="focus:bg-purple-500/20 focus:text-purple-400">中文</SelectItem>
+            <SelectItem value="ar" className="focus:bg-purple-500/20 focus:text-purple-400">العربية</SelectItem>
+            <SelectItem value="hi" className="focus:bg-purple-500/20 focus:text-purple-400">हिन्दी</SelectItem>
+            <SelectItem value="ru" className="focus:bg-purple-500/20 focus:text-purple-400">Русский</SelectItem>
+            <SelectItem value="pt" className="focus:bg-purple-500/20 focus:text-purple-400">Português</SelectItem>
+            <SelectItem value="ja" className="focus:bg-purple-500/20 focus:text-purple-400">日本語</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    );
+  };
+
   const CurrencySelector = () => (
     <div className="flex items-center gap-2 px-2">
       <Globe className="h-4 w-4 text-cyan-400" />
@@ -101,7 +146,7 @@ export function MainLayout({ children }: LayoutProps) {
         <SelectTrigger className="h-8 w-[80px] border-none shadow-none bg-transparent focus:ring-0 px-1 text-xs font-medium text-muted-foreground hover:text-cyan-400 transition-colors">
           <SelectValue placeholder="USD" />
         </SelectTrigger>
-        <SelectContent className="bg-black/90 border border-white/10 backdrop-blur-xl">
+        <SelectContent className="bg-black/90 border border-white/10 backdrop-blur-xl z-[9999]">
           <SelectItem value="USD" className="focus:bg-cyan-500/20 focus:text-cyan-400">USD</SelectItem>
           <SelectItem value="GBP" className="focus:bg-cyan-500/20 focus:text-cyan-400">GBP</SelectItem>
           <SelectItem value="INR" className="focus:bg-cyan-500/20 focus:text-cyan-400">INR</SelectItem>
@@ -144,7 +189,14 @@ export function MainLayout({ children }: LayoutProps) {
             </Link>
           </div>
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pl-2">
-            <div className="shrink-0"><CurrencySelector /></div>
+            
+            {/* Added Translation & Currency blocks */}
+            <div className="flex items-center bg-white/5 rounded-lg shrink-0 border border-white/10 p-0.5">
+               <LanguageSelector />
+               <div className="w-px h-4 bg-white/10 mx-1" />
+               <CurrencySelector />
+            </div>
+
             {isAuthenticated && !isAdmin && (
               <Button size="sm" className="flex items-center gap-2 shrink-0 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" onClick={() => navigate('/add-balance')}>
                 <Wallet className="h-4 w-4" />
@@ -188,9 +240,14 @@ export function MainLayout({ children }: LayoutProps) {
           </nav>
 
           <div className="p-4 border-t border-white/10 space-y-4 bg-black/20">
-            <div className="bg-white/5 border border-white/10 rounded-xl p-2 flex items-center justify-between gap-2">
+            
+            {/* Added translation block stacked above currency */}
+            <div className="bg-white/5 border border-white/10 rounded-xl p-2 flex flex-col gap-2">
+               <LanguageSelector />
+               <div className="h-px w-full bg-white/5 my-0.5" />
                <CurrencySelector />
             </div>
+
             {isAuthenticated && user && !isAdmin && (
               <div>
                 <Button className="w-full justify-between h-14 bg-gradient-to-r from-cyan-900/40 to-blue-900/40 hover:from-cyan-800/50 hover:to-blue-800/50 border border-cyan-500/30 text-white rounded-xl group transition-all" onClick={() => navigate('/add-balance')}>
