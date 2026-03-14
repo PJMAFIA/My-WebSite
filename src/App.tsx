@@ -16,6 +16,7 @@ import NotFound from "./pages/NotFound";
 import LoginPage from "./pages/auth/LoginPage";
 import RegisterPage from "./pages/auth/RegisterPage";
 import ShopPage from "./pages/shop/ShopPage";
+import ProductDetailsPage from "./pages/shop/ProductDetailsPage"; // ✅ NEW PAGE IMPORT
 import CheckoutPage from "./pages/checkout/CheckoutPage";
 
 // User Pages
@@ -33,7 +34,7 @@ import AdminProductsPage from "./pages/admin/AdminProductsPage";
 import AdminLicensesPage from "./pages/admin/AdminLicensesPage";
 import AdminResetsPage from "./pages/admin/AdminResetsPage";
 import AdminPromosPage from "./pages/admin/AdminPromosPage";
-import AdminAnnouncementPage from "./pages/admin/AdminAnnouncementPage"; // ✅ NEW PAGE IMPORT
+import AdminAnnouncementPage from "./pages/admin/AdminAnnouncementPage"; 
 
 const queryClient = new QueryClient();
 
@@ -90,6 +91,7 @@ const App = () => (
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/shop" element={<ShopPage />} />
+              <Route path="/product/:id" element={<ProductDetailsPage />} /> {/* ✅ NEW ROUTE */}
 
               {/* User Routes */}
               <Route path="/dashboard" element={<UserDashboard />} />
@@ -107,7 +109,7 @@ const App = () => (
               <Route path="/admin/licenses" element={<AdminLicensesPage />} />
               <Route path="/admin/resets" element={<AdminResetsPage />} />
               <Route path="/admin/promos" element={<AdminPromosPage />} />
-              <Route path="/admin/announcement" element={<AdminAnnouncementPage />} /> {/* ✅ NEW ROUTE */}
+              <Route path="/admin/announcement" element={<AdminAnnouncementPage />} /> 
 
               <Route path="*" element={<NotFound />} />
             </Routes>

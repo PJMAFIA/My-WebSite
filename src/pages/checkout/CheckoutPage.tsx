@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
-  CreditCard, Upload, CheckCircle, ArrowLeft, Copy, Wallet, QrCode, Loader2, Zap, Tag, ShieldCheck 
+  CreditCard, Upload, CheckCircle, ArrowLeft, Copy, Wallet, QrCode, Loader2, Zap, Tag, ShieldCheck, Plus, Minus, Gift
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -26,7 +26,8 @@ const paymentDetails: Record<PaymentMethod, { title: string; details: React.Reac
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const { selectedProduct, selectedPlan, clearCart } = useCartStore();
+  // ✅ Added quantity to destructuring
+  const { selectedProduct, selectedPlan, quantity, setQuantity, clearCart } = useCartStore();
   const { user, isAuthenticated, login, token } = useAuthStore() as any;
   const { toast } = useToast();
 
@@ -48,8 +49,20 @@ export default function CheckoutPage() {
 
   if (!selectedProduct || !selectedPlan || !user) return null;
 
-  const basePrice = selectedProduct.prices[selectedPlan as keyof typeof selectedProduct.prices];
-  const finalPrice = appliedPromo ? basePrice - appliedPromo.discount : basePrice;
+  // ✅ BULK DISCOUNT MATH
+  const baseUnitPrice = selectedProduct.prices[selectedPlan as keyof typeof selectedProduct.prices];
+  const totalBasePrice = baseUnitPrice * quantity;
+  
+  let bulkDiscountPercent = 0;
+  if (quantity >= 4) bulkDiscountPercent = 0.50; // 50% off
+  else if (quantity === 3) bulkDiscountPercent = 0.30; // 30% off
+  else if (quantity === 2) bulkDiscountPercent = 0.15; // 15% off
+
+  const bulkDiscountAmount = totalBasePrice * bulkDiscountPercent;
+  const priceAfterBulk = totalBasePrice - bulkDiscountAmount;
+  
+  // Apply Promo after bulk discount
+  const finalPrice = appliedPromo ? Math.max(0, priceAfterBulk - appliedPromo.discount) : priceAfterBulk;
   const canPayWithWallet = user.balance >= finalPrice;
 
   // ✅ PROMO HANDLER
@@ -57,7 +70,8 @@ export default function CheckoutPage() {
     if (!promoCode.trim()) return;
     setIsValidating(true);
     try {
-      const res = await api.post('/promos/validate', { code: promoCode, cartTotal: basePrice });
+      // Send the current price (after bulk) so promo calculates percent correctly
+      const res = await api.post('/promos/validate', { code: promoCode, cartTotal: priceAfterBulk });
       setAppliedPromo({ code: res.data.data.code, discount: res.data.data.discountAmount });
       toast({ title: 'Promo Applied!', description: `You saved $${res.data.data.discountAmount}`, className: "bg-emerald-500 text-white border-none" });
     } catch (error: any) {
@@ -68,15 +82,16 @@ export default function CheckoutPage() {
     }
   };
 
-  // 🔵 WALLET PAY (Updated to send promoCode)
+  // 🔵 WALLET PAY
   const handleWalletPurchase = async () => {
     setIsSubmitting(true);
     try {
       await api.post('/orders/wallet', {
         productId: selectedProduct.id,
         plan: selectedPlan,
-        price: basePrice, // Send base price, backend recalculates discount
-        promoCode: appliedPromo?.code // ✅ Send Code
+        quantity: quantity, // ✅ Added quantity
+        price: finalPrice,  // Send final calculated price
+        promoCode: appliedPromo?.code 
       });
 
       const newBalance = Number((user.balance - finalPrice).toFixed(2));
@@ -84,7 +99,7 @@ export default function CheckoutPage() {
       if (currentToken) login({ ...user, balance: newBalance }, currentToken);
 
       clearCart();
-      toast({ title: 'Purchase Successful! 🎉', description: 'License key added to dashboard.', className: "bg-emerald-500 text-white border-none" });
+      toast({ title: 'Purchase Successful! 🎉', description: `${quantity}x License keys added to dashboard.`, className: "bg-emerald-500 text-white border-none" });
       navigate('/dashboard');
     } catch (error: any) {
       console.error(error);
@@ -100,11 +115,11 @@ export default function CheckoutPage() {
       const formData = new FormData();
       formData.append('productId', selectedProduct.id);
       formData.append('plan', selectedPlan);
+      formData.append('quantity', quantity.toString()); // ✅ Added quantity
       formData.append('price', finalPrice.toString());
       formData.append('paymentMethod', paymentMethod);
       formData.append('transactionId', transactionId);
       formData.append('paymentScreenshot', screenshot); 
-      // Manual orders don't support promo validation automatically yet, sending price as final.
 
       await api.post('/orders', formData);
       clearCart();
@@ -124,13 +139,34 @@ export default function CheckoutPage() {
         <Button variant="ghost" className="mb-6 hover:bg-white/5 text-gray-400 hover:text-white" onClick={() => navigate('/shop')}>
             <ArrowLeft className="h-4 w-4 mr-2" /> Cancel & Return to Shop
         </Button>
+
+        {/* 🔥 ATTRACTIVE BULK DISCOUNT BANNER */}
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+            <div className="bg-gradient-to-r from-purple-600/20 via-cyan-500/20 to-purple-600/20 border border-cyan-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-[0_0_30px_rgba(0,240,255,0.15)] relative overflow-hidden">
+                <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.05)_50%,transparent_75%)] bg-[length:250px_250px] animate-[pulse-glow_3s_linear_infinite]" />
+                <div className="flex items-center gap-4 relative z-10">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center shadow-lg">
+                        <Gift className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                        <h3 className="font-black text-white text-lg tracking-wide uppercase">Unlock Massive Savings</h3>
+                        <p className="text-cyan-200 text-sm font-medium">Buy multiple keys and stack your discounts instantly!</p>
+                    </div>
+                </div>
+                <div className="flex gap-3 relative z-10 text-xs font-black">
+                    <div className={`px-4 py-2 rounded-lg border ${quantity === 2 ? 'bg-cyan-500 text-black border-cyan-400 scale-105 shadow-[0_0_15px_rgba(0,240,255,0.4)]' : 'bg-black/50 text-gray-400 border-white/10'} transition-all`}>2 Keys = 15% OFF</div>
+                    <div className={`px-4 py-2 rounded-lg border ${quantity === 3 ? 'bg-cyan-500 text-black border-cyan-400 scale-105 shadow-[0_0_15px_rgba(0,240,255,0.4)]' : 'bg-black/50 text-gray-400 border-white/10'} transition-all`}>3 Keys = 30% OFF</div>
+                    <div className={`px-4 py-2 rounded-lg border ${quantity >= 4 ? 'bg-cyan-500 text-black border-cyan-400 scale-105 shadow-[0_0_15px_rgba(0,240,255,0.4)]' : 'bg-black/50 text-gray-400 border-white/10'} transition-all`}>4+ Keys = 50% OFF</div>
+                </div>
+            </div>
+        </motion.div>
         
         <div className="grid lg:grid-cols-12 gap-8">
           
           {/* Order Summary (Left side on desktop) */}
           <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="lg:col-span-5">
             <Card className="sticky top-24 bg-black/40 border border-white/[0.05] shadow-2xl backdrop-blur-xl overflow-hidden relative">
-              <div className="absolute top-0 left-0 w-full h-1 bg-cyan-500" />
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-cyan-500" />
               
               <CardHeader className="border-b border-white/[0.05] pb-4">
                 <CardTitle className="text-xl font-bold text-white flex items-center gap-2">
@@ -140,15 +176,37 @@ export default function CheckoutPage() {
               
               <CardContent className="p-6 space-y-6">
                 <div className="flex items-center gap-4 bg-white/[0.02] p-4 rounded-xl border border-white/[0.05]">
-                  <div className="w-16 h-16 rounded-xl bg-black/50 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
+                  <div className="w-16 h-16 rounded-xl bg-black/50 border border-white/10 flex items-center justify-center overflow-hidden shrink-0 relative group">
                     {selectedProduct.image ? <img src={selectedProduct.image} className="w-full h-full object-cover opacity-80" /> : <span className="text-2xl font-bold text-cyan-400">{selectedProduct.name.charAt(0)}</span>}
+                    <div className="absolute -bottom-2 -right-2 w-6 h-6 bg-cyan-500 text-black font-black text-xs flex items-center justify-center rounded-full border-2 border-black">x{quantity}</div>
                   </div>
-                  <div>
+                  <div className="flex-1">
                     <h3 className="font-bold text-white leading-tight">{selectedProduct.name}</h3>
                     <Badge className="bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 mt-2 px-2 py-0 font-medium tracking-wide uppercase text-[10px]">
                         {formatPlan(selectedPlan)} Plan
                     </Badge>
                   </div>
+                </div>
+
+                {/* ✅ QUANTITY SELECTOR */}
+                <div className="flex items-center justify-between bg-black/30 p-3 rounded-xl border border-white/10">
+                    <Label className="text-xs text-gray-400 font-bold uppercase tracking-widest pl-2">Quantity</Label>
+                    <div className="flex items-center gap-3">
+                        <button 
+                            disabled={quantity <= 1} 
+                            onClick={() => { setQuantity(quantity - 1); setAppliedPromo(null); }}
+                            className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                        >
+                            <Minus size={16} />
+                        </button>
+                        <span className="font-black text-lg w-6 text-center">{quantity}</span>
+                        <button 
+                            onClick={() => { setQuantity(quantity + 1); setAppliedPromo(null); }}
+                            className="w-8 h-8 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/40 text-cyan-400 flex items-center justify-center transition-all"
+                        >
+                            <Plus size={16} />
+                        </button>
+                    </div>
                 </div>
                 
                 {/* ✅ PROMO INPUT */}
@@ -174,19 +232,31 @@ export default function CheckoutPage() {
 
                 <div className="bg-black/30 rounded-xl p-5 border border-white/5 space-y-3">
                   <div className="flex justify-between text-sm font-medium">
-                      <span className="text-gray-400">Subtotal</span>
-                      <span className="text-white">${basePrice.toFixed(2)}</span>
+                      <span className="text-gray-400">Base Subtotal ({quantity}x)</span>
+                      <span className="text-white">${totalBasePrice.toFixed(2)}</span>
                   </div>
+                  
+                  {bulkDiscountPercent > 0 && (
+                      <div className="flex justify-between text-sm font-bold text-cyan-400">
+                          <span>Bulk Discount ({(bulkDiscountPercent * 100).toFixed(0)}%)</span>
+                          <span>-${bulkDiscountAmount.toFixed(2)}</span>
+                      </div>
+                  )}
+
                   {appliedPromo && (
                       <div className="flex justify-between text-sm font-bold text-emerald-400">
-                          <span>Discount ({appliedPromo.code})</span>
+                          <span>Promo ({appliedPromo.code})</span>
                           <span>-${appliedPromo.discount.toFixed(2)}</span>
                       </div>
                   )}
+                  
                   <div className="w-full h-px bg-white/10 my-1" />
                   <div className="flex justify-between items-end pt-1">
                       <span className="text-sm font-bold text-gray-300">Total Payable</span>
-                      <span className="text-3xl font-black text-white tracking-tight">${finalPrice.toFixed(2)}</span>
+                      <div className="text-right">
+                          {bulkDiscountPercent > 0 && <p className="text-xs text-gray-500 line-through mb-1">${totalBasePrice.toFixed(2)}</p>}
+                          <span className="text-3xl font-black text-white tracking-tight">${finalPrice.toFixed(2)}</span>
+                      </div>
                   </div>
                 </div>
               </CardContent>
@@ -202,7 +272,7 @@ export default function CheckoutPage() {
                         <Zap className="h-8 w-8 text-cyan-400 fill-cyan-400" /> 
                     </div>
                     <CardTitle className="text-2xl font-black text-white">Instant Deployment</CardTitle>
-                    <CardDescription className="text-gray-400 mt-2 font-medium">Funds available. Key will be delivered instantly.</CardDescription>
+                    <CardDescription className="text-gray-400 mt-2 font-medium">Funds available. Keys will be delivered instantly.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-8 p-8 flex-1 flex flex-col justify-center">
                   
@@ -303,7 +373,7 @@ export default function CheckoutPage() {
                     onClick={handleSubmitManual} 
                     disabled={isSubmitting || !transactionId || !screenshot}
                   >
-                    {isSubmitting ? <><Loader2 className="animate-spin mr-2 h-5 w-5" /> Submitting Data...</> : 'Submit Payment For Verification'}
+                    {isSubmitting ? <><Loader2 className="animate-spin mr-2 h-5 w-5" /> Submitting Data...</> : `Submit $${finalPrice.toFixed(2)} Payment Verification`}
                   </Button>
                 </CardContent>
               </Card>

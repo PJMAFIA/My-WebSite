@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  ShoppingBag, Search, Loader2, ChevronLeft, ChevronRight, Gift, Zap, Package, ArrowRight, Sparkles 
+  ShoppingBag, Search, Loader2, ChevronLeft, ChevronRight, Gift, Zap, Package, ArrowRight, Sparkles, Info
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -105,15 +105,13 @@ export default function ShopPage() {
     }
   }, [fetchProducts, isAuthenticated]);
 
-  // ✅ FIXED: Dynamically set the default plan to the first one that is NOT $0
   useEffect(() => {
     const initial: Record<string, PlanType> = {};
     const planOptions: PlanType[] = ['1_day', '7_days', '30_days', 'lifetime'];
     
     products.forEach(p => { 
-        // Find the first plan that actually has a price > 0
         const firstAvailablePlan = planOptions.find(plan => getPrice(p, plan) > 0);
-        initial[p.id] = firstAvailablePlan || '30_days'; // Fallback just in case
+        initial[p.id] = firstAvailablePlan || '30_days'; 
     });
     setSelectedPlans(initial);
   }, [products, currency]);
@@ -271,7 +269,6 @@ export default function ShopPage() {
                 const trialIsActive = isTrialActive(product.id, prod.trial_hours);
                 const trialAlreadyUsed = hasUsedTrial(product.id);
 
-                // ✅ Check if the product has ANY valid plans
                 const hasValidPlans = (['1_day', '7_days', '30_days', 'lifetime'] as PlanType[]).some(plan => getPrice(product, plan) > 0);
 
                 return (
@@ -282,10 +279,8 @@ export default function ShopPage() {
                     transition={{ duration: 0.4, delay: i * 0.06, ease: 'easeOut' }}
                     className="bg-white/[0.02] border border-white/[0.05] rounded-xl flex flex-col group relative overflow-hidden backdrop-blur-md hover:border-cyan-400/30 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_30px_rgb(0,240,255,0.05)]"
                   >
-                    {/* Shine overlay */}
                     <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/[0.05] to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none z-10" />
 
-                    {/* Status badges */}
                     <div className="absolute top-3 left-3 z-20 flex flex-col gap-1.5">
                       {prod.is_trial && !trialAlreadyUsed && (
                         <span className="bg-purple-500/20 border border-purple-500/50 text-purple-400 text-[10px] font-bold px-2 py-1 rounded-md flex items-center gap-1 shadow-lg backdrop-blur-md">
@@ -301,24 +296,27 @@ export default function ShopPage() {
                       )}
                     </div>
 
-                    {/* Image slider */}
                     <ProductImageSlider
                       images={product.images?.length > 0 ? product.images : product.image ? [product.image] : []}
                       name={product.name}
                     />
 
-                    {/* Content */}
                     <div className="flex flex-col flex-1 p-5 gap-4 relative z-20">
                       <div>
                         <h3 className="font-bold text-lg text-white leading-tight tracking-tight group-hover:text-cyan-400 transition-colors duration-200">
                           {product.name}
                         </h3>
-                        <p className="text-xs text-gray-400 mt-1.5 leading-relaxed line-clamp-2">
-                          {product.description}
-                        </p>
+                        {/* ✅ REMOVED CLUNKY DESCRIPTION, REPLACED WITH VIEW DETAILS BUTTON */}
+                        <Button 
+                          variant="ghost" 
+                          onClick={() => navigate(`/product/${product.id}`)}
+                          className="w-full justify-start px-0 text-cyan-400 hover:text-cyan-300 hover:bg-transparent h-auto py-2 mt-1 transition-colors"
+                        >
+                          <Info className="h-4 w-4 mr-2" />
+                          View Product Details
+                        </Button>
                       </div>
 
-                      {/* Plan selector */}
                       <Select
                         value={selectedPlan}
                         onValueChange={(val: PlanType) => setSelectedPlans((prev) => ({ ...prev, [product.id]: val }))}
@@ -330,10 +328,7 @@ export default function ShopPage() {
                         <SelectContent className="bg-[#0f1219] border-white/[0.08] text-white backdrop-blur-xl">
                           {(['1_day', '7_days', '30_days', 'lifetime'] as PlanType[]).map((plan) => {
                             const p = getPrice(product, plan);
-                            
-                            // ✅ FIXED: Hide plan entirely from the list if price is 0
                             if (p <= 0) return null; 
-                            
                             return (
                               <SelectItem key={plan} value={plan} className="text-sm focus:text-cyan-400 focus:bg-cyan-400/10 cursor-pointer">
                                 {formatPlan(plan)} — {formatPrice(p)}
@@ -343,10 +338,8 @@ export default function ShopPage() {
                         </SelectContent>
                       </Select>
 
-                      {/* Divider */}
                       <div className="h-px w-full bg-gradient-to-r from-transparent via-white/[0.1] to-transparent my-1" />
 
-                      {/* Price + CTAs */}
                       <div className="flex flex-col gap-3 mt-auto">
                         <div className="flex flex-col">
                           <span className="text-2xl font-black tracking-tight text-white drop-shadow-md">

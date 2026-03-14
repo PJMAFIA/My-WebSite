@@ -128,7 +128,7 @@ export default function MyProductsPage() {
                 if (!product) return null;
                 
                 const rawOrder = order as any;
-                const actualLicenseKey = rawOrder.license?.key || rawOrder.licenses?.key || rawOrder.licenseKey;
+                const actualLicenseKey = rawOrder.license?.key || rawOrder.licenses?.key || rawOrder.license_obj?.key || rawOrder.licenseKey;
                 const isBypassEmulator = product.name === 'Bypass Emulator';
 
                 // ✅ 3-STATE UID LOGIC
@@ -165,7 +165,10 @@ export default function MyProductsPage() {
                                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1.5 inline-block" /> Active
                                     </Badge>
                                     <span className="text-gray-600">•</span>
-                                    <span className="text-sm font-medium text-gray-400 uppercase tracking-wider">{formatPlan(order.plan)} Plan</span>
+                                    <span className="text-sm font-medium text-gray-400 uppercase tracking-wider">{formatPlan(order.plan)}</span>
+                                    <span className="text-gray-600">•</span>
+                                    {/* ✅ SHOW LICENSE ID FOR BULK PURCHASES */}
+                                    <span className="text-xs font-mono font-bold text-gray-500">ID: {order.id.slice(0, 8)}</span>
                                 </div>
                                 </div>
                                 

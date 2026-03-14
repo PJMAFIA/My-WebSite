@@ -217,9 +217,7 @@ export const useBalanceRequestStore = create<BalanceRequestState>((set) => ({
       const pendingTotalUSD = mapped
         .filter((r: BalanceRequest) => r.status === 'pending')
         .reduce((sum: number, r: BalanceRequest) => {
-           // Get rate for the transaction's specific currency
            const rate = exchangeRates[r.currency || 'USD'] || 1;
-           // Convert this transaction to USD
            const amountInUSD = r.amount / rate;
            return sum + amountInUSD;
         }, 0);
@@ -342,7 +340,22 @@ export const useLicenseStore = create<{ licenses: License[]; addLicense: (l: Lic
   persist((set) => ({ licenses: [], addLicense: (license) => set((state) => ({ licenses: [...state.licenses, license] })) }), { name: 'license-storage' })
 );
 
-export const useCartStore = create<{ selectedProduct: Product | null; selectedPlan: '1_day' | '7_days' | '30_days' | 'lifetime' | null; setCart: (p: Product, plan: any) => void; clearCart: () => void; }>((set) => ({ selectedProduct: null, selectedPlan: null, setCart: (product, plan) => set({ selectedProduct: product, selectedPlan: plan }), clearCart: () => set({ selectedProduct: null, selectedPlan: null }), }));
+// ✅ ADDED: quantity and setQuantity tracking to the Cart Store
+export const useCartStore = create<{ 
+  selectedProduct: Product | null; 
+  selectedPlan: '1_day' | '7_days' | '30_days' | 'lifetime' | null; 
+  quantity: number;
+  setQuantity: (q: number) => void;
+  setCart: (p: Product, plan: any) => void; 
+  clearCart: () => void; 
+}>((set) => ({ 
+  selectedProduct: null, 
+  selectedPlan: null, 
+  quantity: 1,
+  setQuantity: (q) => set({ quantity: q }),
+  setCart: (product, plan) => set({ selectedProduct: product, selectedPlan: plan, quantity: 1 }), 
+  clearCart: () => set({ selectedProduct: null, selectedPlan: null, quantity: 1 }), 
+}));
 
 /* =======================
    HELPERS
