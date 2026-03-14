@@ -94,7 +94,6 @@ export function MainLayout({ children }: LayoutProps) {
     return `${symbol}${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  // ✅ Custom Global Language Selector Logic
   const LanguageSelector = () => {
     const [currentLang, setCurrentLang] = useState('en');
 
@@ -176,32 +175,33 @@ export function MainLayout({ children }: LayoutProps) {
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_50%,#000_20%,transparent_100%)] opacity-30" />
       </div>
       
-      {/* 📱 Mobile Header */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-black/40 backdrop-blur-xl border-b border-white/10 px-4 py-3">
+      {/* 📱 Mobile Header (FIXED OVERFLOW ISSUE) */}
+      <header className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-black/40 backdrop-blur-xl border-b border-white/10 px-3 sm:px-4 py-3">
         <div className="flex items-center w-full justify-between">
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <Button variant="ghost" size="icon" className="-ml-2 text-white hover:bg-white/10" onClick={() => setSidebarOpen(!sidebarOpen)}>
               {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </Button>
             <Link to="/" className="flex items-center gap-2">
               <img src="/logo.png" alt="Logo" className="w-8 h-8 rounded-lg object-contain shadow-[0_0_10px_rgba(0,240,255,0.3)]" />
-              <span className="font-bold text-lg hidden xs:inline-block tracking-tight text-white">Universal Store</span>
+              <span className="font-bold text-base sm:text-lg hidden xs:inline-block tracking-tight text-white">Universal Store</span>
             </Link>
           </div>
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pl-2">
+          
+          <div className="flex items-center gap-2 shrink-0">
             
-            {/* Added Translation & Currency blocks */}
-            <div className="flex items-center bg-white/5 rounded-lg shrink-0 border border-white/10 p-0.5">
+            {/* ✅ HIDDEN ON SMALL MOBILE: Language & Currency moved to sidebar to save space */}
+            <div className="hidden sm:flex items-center bg-white/5 rounded-lg shrink-0 border border-white/10 p-0.5">
                <LanguageSelector />
                <div className="w-px h-4 bg-white/10 mx-1" />
                <CurrencySelector />
             </div>
 
             {isAuthenticated && !isAdmin && (
-              <Button size="sm" className="flex items-center gap-2 shrink-0 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" onClick={() => navigate('/add-balance')}>
+              <Button size="sm" className="flex items-center gap-1.5 shrink-0 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 px-3" onClick={() => navigate('/add-balance')}>
                 <Wallet className="h-4 w-4" />
-                <span className="font-semibold whitespace-nowrap">{formatPrice(user?.balance || 0)}</span>
-                <Plus className="h-3 w-3" />
+                <span className="font-semibold text-xs sm:text-sm whitespace-nowrap">{formatPrice(user?.balance || 0)}</span>
+                <Plus className="h-3 w-3 hidden sm:block" />
               </Button>
             )}
           </div>
@@ -241,7 +241,7 @@ export function MainLayout({ children }: LayoutProps) {
 
           <div className="p-4 border-t border-white/10 space-y-4 bg-black/20">
             
-            {/* Added translation block stacked above currency */}
+            {/* Translation block stacked above currency (Always available here) */}
             <div className="bg-white/5 border border-white/10 rounded-xl p-2 flex flex-col gap-2">
                <LanguageSelector />
                <div className="h-px w-full bg-white/5 my-0.5" />
