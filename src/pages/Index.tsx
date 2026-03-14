@@ -87,13 +87,14 @@ export default function Index() {
       
       {/* ── NAVBAR ── */}
       <header className="relative z-50 border-b border-white/5 backdrop-blur-xl bg-black/40 sticky top-0 shadow-lg">
-        <div className="container mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+        {/* Adjusted padding and gap for mobile */}
+        <div className="container mx-auto px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 sm:gap-3 group shrink-0">
             <div className="relative">
-                <img src="/logo.png" alt="Logo" className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl object-contain drop-shadow-[0_0_10px_rgba(0,240,255,0.4)] group-hover:scale-105 transition-transform" />
+                <img src="/logo.png" alt="Logo" className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl object-contain drop-shadow-[0_0_10px_rgba(0,240,255,0.4)] group-hover:scale-105 transition-transform" />
             </div>
-            {/* ✅ FIXED: Hidden on extra small mobile screens to prevent crushing buttons */}
-            <span className="hidden sm:inline-block font-black text-lg sm:text-xl tracking-tight text-white group-hover:text-cyan-400 transition-colors">Universal Store</span>
+            {/* Restored Universal Store name and adjusted text size for mobile */}
+            <span className="font-black text-[13px] sm:text-xl tracking-tight text-white group-hover:text-cyan-400 transition-colors whitespace-nowrap">Universal Store</span>
           </Link>
 
           <nav className="hidden lg:flex items-center gap-8 bg-white/[0.03] px-6 py-2.5 rounded-full border border-white/[0.05]">
@@ -102,22 +103,24 @@ export default function Index() {
             <button onClick={() => scrollToSection('pricing')} className="text-sm font-bold text-gray-300 hover:text-cyan-400 transition-colors">Pricing</button>
           </nav>
 
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-3 shrink-0">
             {isAuthenticated ? (
-              <Button asChild className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 border-none shadow-[0_0_15px_rgba(6,182,212,0.3)] rounded-full px-4 sm:px-6 font-bold text-xs sm:text-sm">
+              <Button asChild className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 border-none shadow-[0_0_15px_rgba(6,182,212,0.3)] rounded-full px-4 sm:px-6 font-bold text-xs sm:text-sm h-8 sm:h-10">
                 <Link to={user?.role === 'admin' ? '/admin' : '/dashboard'}>
                   Dashboard <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4 ml-1" />
                 </Link>
               </Button>
             ) : (
               <>
-                {/* ✅ FIXED: Always visible now, scaled down on mobile */}
-                <Button asChild variant="ghost" className="text-gray-300 hover:text-cyan-400 hover:bg-white/[0.05] rounded-full px-3 sm:px-4 font-bold text-xs sm:text-sm">
+                <Button asChild variant="ghost" className="text-gray-300 hover:text-cyan-400 hover:bg-white/[0.05] rounded-full px-2 sm:px-4 font-bold text-[11px] sm:text-sm h-8 sm:h-10">
                   <Link to="/login">Sign in</Link>
                 </Button>
-                <Button asChild className="bg-white text-black hover:bg-gray-200 rounded-full px-4 sm:px-6 font-bold text-xs sm:text-sm shadow-[0_0_20px_rgba(255,255,255,0.2)] transition-all">
+                <Button asChild className="bg-white text-black hover:bg-gray-200 rounded-full px-3 sm:px-6 font-bold text-[11px] sm:text-sm shadow-[0_0_20px_rgba(255,255,255,0.2)] transition-all h-8 sm:h-10">
                   <Link to="/register">
-                    Get Started <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 ml-1" />
+                    {/* Shortened to "Start" on mobile to save space */}
+                    <span className="sm:hidden">Start</span>
+                    <span className="hidden sm:inline">Get Started</span> 
+                    <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 ml-1" />
                   </Link>
                 </Button>
               </>
