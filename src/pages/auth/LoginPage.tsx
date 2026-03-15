@@ -55,8 +55,17 @@ export default function LoginPage() {
         password
       });
 
-      // ✅ FIX: Destructure 'token' (was previously expecting accessToken)
-      const { user, token } = response.data.data;
+      // ✅ FIX: Destructure token AND refreshToken
+      const { user, token, refreshToken } = response.data.data;
+
+      // ✅ CRITICAL BUG FIX: Tell the browser's Supabase client about the session!
+      // This is what stops the session from disappearing when you reload the page.
+      if (token && refreshToken) {
+        await supabase.auth.setSession({
+          access_token: token,
+          refresh_token: refreshToken
+        });
+      }
 
       // Update State with Token
       login(user, token);

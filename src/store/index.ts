@@ -9,7 +9,6 @@ import { supabase } from '@/lib/supabase';
 
 export type CurrencyType = 'USD' | 'GBP' | 'INR' | 'PKR' | 'BDT' | 'NPR';
 
-// ✅ Centralized Exchange Rates (Must match MainLayout & Dashboard)
 export const exchangeRates: Record<string, number> = { 
   USD: 1, 
   GBP: 0.79, 
@@ -54,8 +53,6 @@ export interface Product {
   softwareDownloadLink?: string;
   tutorialVideoLink?: string;
   applyProcess?: string;
-  
-  // ✅ NEW: Trial Fields
   is_trial?: boolean;
   trial_hours?: number;
 }
@@ -64,12 +61,10 @@ export interface Order {
   id: string;
   userId: string;
   productId: string;
-  // ✅ ADDED 'trial' to Plan Type
   plan: '1_day' | '7_days' | '30_days' | 'lifetime' | 'trial';
   price: number;
   currency?: string; 
   status: 'pending' | 'completed' | 'rejected';
-  // ✅ ADDED 'free_trial' to Payment Method
   paymentMethod: 'upi' | 'crypto' | 'bank_transfer' | 'paypal' | 'free_trial';
   transactionId: string;
   paymentScreenshot?: string;
@@ -77,7 +72,6 @@ export interface Order {
   completedAt?: string;
   licenseKey?: string;
   softwareDownloadLink?: string;
-  // ✅ Logic support for Admin Dashboard display
   userName?: string;
   userEmail?: string;
   productName?: string;
@@ -143,7 +137,8 @@ export const useAuthStore = create<AuthState>()(
 
       reset: () => {
         set({ user: null, token: null, isAuthenticated: false, currentCurrency: 'USD' });
-        sessionStorage.clear(); 
+        // ✅ CRITICAL BUG FIX: Ensure we clear from localStorage now
+        localStorage.removeItem('auth-storage'); 
       },
 
       logout: async () => {
@@ -165,7 +160,8 @@ export const useAuthStore = create<AuthState>()(
     }),
     { 
       name: 'auth-storage',
-      storage: createJSONStorage(() => sessionStorage), 
+      // ✅ CRITICAL BUG FIX: Changed to localStorage so session survives across tabs!
+      storage: createJSONStorage(() => localStorage), 
     }
   )
 );
@@ -213,7 +209,6 @@ export const useBalanceRequestStore = create<BalanceRequestState>((set) => ({
         status: r.status, createdAt: r.createdAt, processedAt: r.processedAt
       }));
       
-      // ✅ FIX: Normalize Pending Amount to USD before summing
       const pendingTotalUSD = mapped
         .filter((r: BalanceRequest) => r.status === 'pending')
         .reduce((sum: number, r: BalanceRequest) => {
@@ -273,8 +268,6 @@ export const useProductStore = create<ProductState>((set) => ({
         },
         currency_prices: p.currency_prices || {}, 
         softwareDownloadLink: p.download_link, tutorialVideoLink: p.tutorial_video_link, applyProcess: p.activation_process,
-        
-        // ✅ CRITICAL ADDITION: Mapping Trial Data
         is_trial: p.is_trial,
         trial_hours: p.trial_hours
       }));
@@ -320,7 +313,6 @@ export const useOrderStore = create<OrderState>((set) => ({
           completedAt: o.updated_at, 
           licenseKey: o.extracted_license_key || o.licenses?.key || o.license_obj?.key || o.licenseKey || null, 
           softwareDownloadLink: o.products?.download_link, 
-          // Mapping the manually stitched data from backend
           currency: o.users?.currency || o.currency || 'USD',
           userName: o.users?.full_name || 'System User',
           userEmail: o.users?.email || 'N/A',
@@ -340,7 +332,6 @@ export const useLicenseStore = create<{ licenses: License[]; addLicense: (l: Lic
   persist((set) => ({ licenses: [], addLicense: (license) => set((state) => ({ licenses: [...state.licenses, license] })) }), { name: 'license-storage' })
 );
 
-// ✅ ADDED: quantity and setQuantity tracking to the Cart Store
 export const useCartStore = create<{ 
   selectedProduct: Product | null; 
   selectedPlan: '1_day' | '7_days' | '30_days' | 'lifetime' | null; 
@@ -363,7 +354,6 @@ export const useCartStore = create<{
 
 export const generateLicenseKey = () => 'KEY-' + Math.random().toString(36).substring(2, 11).toUpperCase();
 
-// ✅ UPDATED: Added 'trial' to Plan Helper
 export const formatPlan = (plan: string) => ({ 
   '1_day': '1 Day', 
   '7_days': '7 Days', 
@@ -374,7 +364,6 @@ export const formatPlan = (plan: string) => ({
 
 export const formatDate = (date: string) => new Date(date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 
-// ✅ Updated: Uses passed currency to calculate rate and symbol
 export const formatPrice = (amountInUsd: number, currency: string = 'USD') => {
   const rate = exchangeRates[currency] || 1;
   const converted = amountInUsd * rate;
@@ -384,7 +373,7 @@ export const formatPrice = (amountInUsd: number, currency: string = 'USD') => {
     case 'INR': symbol = '₹'; break;
     case 'PKR': symbol = 'Rs. '; break;
     case 'BDT': symbol = '৳'; break;
-    case 'NPR': symbol = 'Rs. '; break; // ✅ Case for Nepal
+    case 'NPR': symbol = 'Rs. '; break; 
   }
   return `${symbol}${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
@@ -395,7 +384,6 @@ export const getProductPrice = (product: Product, plan: string, currency: string
     const local = product.currency_prices[currency as CurrencyType]![plan as keyof PriceStructure];
     return local > 0 ? local : 0;
   }
-  // Fallback: Convert USD if no local price set
   const usdPrice = product.prices[plan as keyof PriceStructure] || 0;
   return usdPrice * (exchangeRates[currency] || 1);
 };
