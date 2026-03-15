@@ -24,11 +24,15 @@ const paymentDetails: Record<PaymentMethod, { title: string; details: React.Reac
   paypal: { title: 'PayPal', details: (<div className="space-y-4 text-center py-4"><div className="w-20 h-20 mx-auto bg-blue-500/10 border border-blue-500/20 rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(59,130,246,0.2)]"><Wallet className="w-8 h-8 text-blue-400" /></div><div><p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Send payment to</p><p className="font-medium text-white bg-white/5 py-2 rounded-lg">paypal@saasify.com</p></div></div>) },
 };
 
+const exchangeRates: Record<string, number> = {
+  USD: 1, GBP: 0.79, INR: 83.50, PKR: 278.00, BDT: 117.00, NPR: 133.00
+};
+
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  // ✅ Added quantity to destructuring
   const { selectedProduct, selectedPlan, quantity, setQuantity, clearCart } = useCartStore();
-  const { user, isAuthenticated, login, token } = useAuthStore() as any;
+  
+  const { user, isAuthenticated, login, token, currentCurrency } = useAuthStore() as any;
   const { toast } = useToast();
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('upi');
@@ -37,7 +41,6 @@ export default function CheckoutPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ✅ PROMO CODE STATE
   const [promoCode, setPromoCode] = useState('');
   const [appliedPromo, setAppliedPromo] = useState<{ code: string; discount: number } | null>(null);
   const [isValidating, setIsValidating] = useState(false);
@@ -49,31 +52,51 @@ export default function CheckoutPage() {
 
   if (!selectedProduct || !selectedPlan || !user) return null;
 
-  // ✅ BULK DISCOUNT MATH
-  const baseUnitPrice = selectedProduct.prices[selectedPlan as keyof typeof selectedProduct.prices];
+  const currency = currentCurrency || user?.currency || 'USD';
+  const exchangeRate = exchangeRates[currency] || 1;
+
+  const localizedBalance = (user.balance || 0) * exchangeRate;
+
+  const getPrice = (product: any, plan: string): number => {
+    if (currency === 'USD') return product.prices[plan] || 0;
+    if (product.currency_prices?.[currency]?.[plan]) return product.currency_prices[currency][plan];
+    const usdPrice = product.prices[plan] || 0;
+    return usdPrice * exchangeRate;
+  };
+
+  const formatDisplayPrice = (price: number) => {
+    switch (currency) {
+      case 'GBP': return `£${price.toFixed(2)}`;
+      case 'INR': return `₹${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      case 'PKR': return `Rs. ${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      case 'BDT': return `৳${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      case 'NPR': return `Rs. ${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      default: return `$${price.toFixed(2)}`;
+    }
+  };
+
+  const baseUnitPrice = getPrice(selectedProduct, selectedPlan);
   const totalBasePrice = baseUnitPrice * quantity;
   
   let bulkDiscountPercent = 0;
-  if (quantity >= 4) bulkDiscountPercent = 0.50; // 50% off
-  else if (quantity === 3) bulkDiscountPercent = 0.30; // 30% off
-  else if (quantity === 2) bulkDiscountPercent = 0.15; // 15% off
+  if (quantity >= 4) bulkDiscountPercent = 0.50; 
+  else if (quantity === 3) bulkDiscountPercent = 0.30; 
+  else if (quantity === 2) bulkDiscountPercent = 0.15; 
 
   const bulkDiscountAmount = totalBasePrice * bulkDiscountPercent;
   const priceAfterBulk = totalBasePrice - bulkDiscountAmount;
   
-  // Apply Promo after bulk discount
   const finalPrice = appliedPromo ? Math.max(0, priceAfterBulk - appliedPromo.discount) : priceAfterBulk;
-  const canPayWithWallet = user.balance >= finalPrice;
+  
+  const canPayWithWallet = localizedBalance >= finalPrice;
 
-  // ✅ PROMO HANDLER
   const handleApplyPromo = async () => {
     if (!promoCode.trim()) return;
     setIsValidating(true);
     try {
-      // Send the current price (after bulk) so promo calculates percent correctly
       const res = await api.post('/promos/validate', { code: promoCode, cartTotal: priceAfterBulk });
       setAppliedPromo({ code: res.data.data.code, discount: res.data.data.discountAmount });
-      toast({ title: 'Promo Applied!', description: `You saved $${res.data.data.discountAmount}`, className: "bg-emerald-500 text-white border-none" });
+      toast({ title: 'Promo Applied!', description: `You saved ${formatDisplayPrice(res.data.data.discountAmount)}`, className: "bg-emerald-500 text-white border-none" });
     } catch (error: any) {
       setAppliedPromo(null);
       toast({ title: 'Invalid Code', description: error.response?.data?.message || 'Code invalid', variant: 'destructive' });
@@ -82,19 +105,21 @@ export default function CheckoutPage() {
     }
   };
 
-  // 🔵 WALLET PAY
   const handleWalletPurchase = async () => {
     setIsSubmitting(true);
     try {
       await api.post('/orders/wallet', {
         productId: selectedProduct.id,
         plan: selectedPlan,
-        quantity: quantity, // ✅ Added quantity
-        price: finalPrice,  // Send final calculated price
-        promoCode: appliedPromo?.code 
+        quantity: quantity,
+        price: finalPrice,  
+        promoCode: appliedPromo?.code,
+        currency: currency // ✅ explicitly send the currency to the backend
       });
 
-      const newBalance = Number((user.balance - finalPrice).toFixed(2));
+      const usdDeduction = finalPrice / exchangeRate;
+      const newBalance = Number((user.balance - usdDeduction).toFixed(2));
+      
       const currentToken = token || localStorage.getItem('auth_token') || localStorage.getItem('token') || '';
       if (currentToken) login({ ...user, balance: newBalance }, currentToken);
 
@@ -107,7 +132,6 @@ export default function CheckoutPage() {
     } finally { setIsSubmitting(false); }
   };
 
-  // 🟠 MANUAL PAY
   const handleSubmitManual = async () => {
     if (!transactionId.trim() || !screenshot) return toast({ title: 'Missing Info', variant: 'destructive' });
     setIsSubmitting(true);
@@ -115,8 +139,9 @@ export default function CheckoutPage() {
       const formData = new FormData();
       formData.append('productId', selectedProduct.id);
       formData.append('plan', selectedPlan);
-      formData.append('quantity', quantity.toString()); // ✅ Added quantity
+      formData.append('quantity', quantity.toString());
       formData.append('price', finalPrice.toString());
+      formData.append('currency', currency); // ✅ explicitly send the currency to the backend
       formData.append('paymentMethod', paymentMethod);
       formData.append('transactionId', transactionId);
       formData.append('paymentScreenshot', screenshot); 
@@ -140,7 +165,6 @@ export default function CheckoutPage() {
             <ArrowLeft className="h-4 w-4 mr-2" /> Cancel & Return to Shop
         </Button>
 
-        {/* 🔥 ATTRACTIVE BULK DISCOUNT BANNER */}
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
             <div className="bg-gradient-to-r from-purple-600/20 via-cyan-500/20 to-purple-600/20 border border-cyan-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-[0_0_30px_rgba(0,240,255,0.15)] relative overflow-hidden">
                 <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.05)_50%,transparent_75%)] bg-[length:250px_250px] animate-[pulse-glow_3s_linear_infinite]" />
@@ -163,7 +187,6 @@ export default function CheckoutPage() {
         
         <div className="grid lg:grid-cols-12 gap-8">
           
-          {/* Order Summary (Left side on desktop) */}
           <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="lg:col-span-5">
             <Card className="sticky top-24 bg-black/40 border border-white/[0.05] shadow-2xl backdrop-blur-xl overflow-hidden relative">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-cyan-500" />
@@ -188,7 +211,6 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
-                {/* ✅ QUANTITY SELECTOR */}
                 <div className="flex items-center justify-between bg-black/30 p-3 rounded-xl border border-white/10">
                     <Label className="text-xs text-gray-400 font-bold uppercase tracking-widest pl-2">Quantity</Label>
                     <div className="flex items-center gap-3">
@@ -209,7 +231,6 @@ export default function CheckoutPage() {
                     </div>
                 </div>
                 
-                {/* ✅ PROMO INPUT */}
                 <div className="space-y-2">
                     <Label className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">Have a Promo Code?</Label>
                     <div className="flex gap-2 relative">
@@ -233,20 +254,20 @@ export default function CheckoutPage() {
                 <div className="bg-black/30 rounded-xl p-5 border border-white/5 space-y-3">
                   <div className="flex justify-between text-sm font-medium">
                       <span className="text-gray-400">Base Subtotal ({quantity}x)</span>
-                      <span className="text-white">${totalBasePrice.toFixed(2)}</span>
+                      <span className="text-white">{formatDisplayPrice(totalBasePrice)}</span>
                   </div>
                   
                   {bulkDiscountPercent > 0 && (
                       <div className="flex justify-between text-sm font-bold text-cyan-400">
                           <span>Bulk Discount ({(bulkDiscountPercent * 100).toFixed(0)}%)</span>
-                          <span>-${bulkDiscountAmount.toFixed(2)}</span>
+                          <span>-{formatDisplayPrice(bulkDiscountAmount)}</span>
                       </div>
                   )}
 
                   {appliedPromo && (
                       <div className="flex justify-between text-sm font-bold text-emerald-400">
                           <span>Promo ({appliedPromo.code})</span>
-                          <span>-${appliedPromo.discount.toFixed(2)}</span>
+                          <span>-{formatDisplayPrice(appliedPromo.discount)}</span>
                       </div>
                   )}
                   
@@ -254,8 +275,8 @@ export default function CheckoutPage() {
                   <div className="flex justify-between items-end pt-1">
                       <span className="text-sm font-bold text-gray-300">Total Payable</span>
                       <div className="text-right">
-                          {bulkDiscountPercent > 0 && <p className="text-xs text-gray-500 line-through mb-1">${totalBasePrice.toFixed(2)}</p>}
-                          <span className="text-3xl font-black text-white tracking-tight">${finalPrice.toFixed(2)}</span>
+                          {bulkDiscountPercent > 0 && <p className="text-xs text-gray-500 line-through mb-1">{formatDisplayPrice(totalBasePrice)}</p>}
+                          <span className="text-3xl font-black text-white tracking-tight">{formatDisplayPrice(finalPrice)}</span>
                       </div>
                   </div>
                 </div>
@@ -263,7 +284,6 @@ export default function CheckoutPage() {
             </Card>
           </motion.div>
 
-          {/* PAYMENT SECTION (Right side on desktop) */}
           <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="lg:col-span-7">
             {canPayWithWallet ? (
               <Card className="bg-gradient-to-br from-cyan-900/20 to-black/40 border border-cyan-500/30 shadow-[0_0_40px_rgba(0,240,255,0.1)] backdrop-blur-xl h-full flex flex-col justify-center">
@@ -280,13 +300,13 @@ export default function CheckoutPage() {
                     <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:10px_10px] pointer-events-none" />
                     
                     <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mb-2 relative z-10">Wallet Balance</p>
-                    <p className="text-5xl font-black text-white mb-6 relative z-10 tracking-tighter">${user.balance.toFixed(2)}</p>
+                    <p className="text-5xl font-black text-white mb-6 relative z-10 tracking-tighter">{formatDisplayPrice(localizedBalance)}</p>
                     
                     <div className="h-px w-full bg-gradient-to-r from-transparent via-white/20 to-transparent mb-6 relative z-10" />
                     
                     <div className="flex justify-between w-full max-w-[200px] text-sm relative z-10 font-medium">
                         <span className="text-gray-400">Remaining after:</span>
-                        <span className="text-emerald-400 font-bold">${(user.balance - finalPrice).toFixed(2)}</span>
+                        <span className="text-emerald-400 font-bold">{formatDisplayPrice(localizedBalance - finalPrice)}</span>
                     </div>
                   </div>
 
@@ -295,7 +315,7 @@ export default function CheckoutPage() {
                     onClick={handleWalletPurchase} 
                     disabled={isSubmitting}
                   >
-                    {isSubmitting ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Authorizing...</> : `Confirm Payment of $${finalPrice.toFixed(2)}`}
+                    {isSubmitting ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Authorizing...</> : `Confirm Payment of ${formatDisplayPrice(finalPrice)}`}
                   </Button>
                 </CardContent>
               </Card>
@@ -306,7 +326,7 @@ export default function CheckoutPage() {
                         <CreditCard className="h-5 w-5 text-purple-400" /> Manual Payment
                     </CardTitle>
                     <CardDescription className="text-red-400 font-medium bg-red-500/10 px-3 py-1.5 rounded-md inline-block w-fit mt-3 border border-red-500/20">
-                        Insufficient wallet balance (${user.balance.toFixed(2)}).
+                        Insufficient wallet balance ({formatDisplayPrice(localizedBalance)}).
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="p-6 space-y-8">
@@ -373,7 +393,7 @@ export default function CheckoutPage() {
                     onClick={handleSubmitManual} 
                     disabled={isSubmitting || !transactionId || !screenshot}
                   >
-                    {isSubmitting ? <><Loader2 className="animate-spin mr-2 h-5 w-5" /> Submitting Data...</> : `Submit $${finalPrice.toFixed(2)} Payment Verification`}
+                    {isSubmitting ? <><Loader2 className="animate-spin mr-2 h-5 w-5" /> Submitting Data...</> : `Submit ${formatDisplayPrice(finalPrice)} Payment Verification`}
                   </Button>
                 </CardContent>
               </Card>
