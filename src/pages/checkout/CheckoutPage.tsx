@@ -2,7 +2,11 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
+<<<<<<< HEAD
   CreditCard, Upload, CheckCircle, ArrowLeft, Copy, Wallet, QrCode, Loader2, Zap, Tag, ShieldCheck, Plus, Minus, Gift, Smartphone, Bitcoin, Check
+=======
+  CreditCard, Upload, CheckCircle, ArrowLeft, Copy, Wallet, QrCode, Loader2, Zap, Tag, ShieldCheck, Plus, Minus, Gift
+>>>>>>> dca3aa3a3f873b44b14ac979061b48a773e7e8ae
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -15,6 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/api'; 
 import { Badge } from '@/components/ui/badge';
 
+<<<<<<< HEAD
 // ✅ Real Payment Methods Integrated
 const paymentMethods = [
   { id: 'crypto_auto', name: 'Crypto (Auto)', icon: Zap, isAuto: true }, 
@@ -26,6 +31,16 @@ const paymentMethods = [
   { id: 'paypal', name: 'PayPal', icon: CreditCard, details: { email: 'Sirtajkhan7191@gmail.com', name: 'Sirtaj Khan' }, isAuto: false },
   { id: 'binance', name: 'Binance Pay', icon: Bitcoin, details: { payId: '586377163', email: 'akhlaq.76@gmail.com' }, qrCode: '/qr-codes/binance.jpg', isAuto: false },
 ];
+=======
+type PaymentMethod = 'upi' | 'crypto' | 'bank_transfer' | 'paypal'; 
+
+const paymentDetails: Record<PaymentMethod, { title: string; details: React.ReactNode }> = {
+  upi: { title: 'UPI Payment', details: (<div className="space-y-4"><div className="w-48 h-48 mx-auto bg-white p-2 rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(255,255,255,0.2)]"><QrCode className="w-40 h-40 text-black" /></div><div className="text-center"><p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">UPI ID</p><p className="font-mono font-medium text-white bg-white/5 py-2 rounded-lg">payments@saasify</p></div></div>) },
+  crypto: { title: 'Cryptocurrency', details: (<div className="space-y-4"><div className="p-4 bg-black/40 border border-white/10 rounded-xl"><p className="text-xs text-cyan-400 font-bold uppercase tracking-wider mb-2">USDT (TRC20)</p><code className="text-xs break-all font-mono text-white select-all">TJYJxuM2zN3qo5qVrTbVxV5xqP3sYvHf8m</code></div><p className="text-xs text-gray-400 text-center font-medium">Only send USDT on TRC20 network</p></div>) },
+  bank_transfer: { title: 'Bank Transfer', details: (<div className="space-y-3"><div className="p-3 bg-black/40 border border-white/10 rounded-lg"><p className="text-[10px] uppercase tracking-widest text-gray-400 mb-1">Account Number</p><p className="font-bold font-mono text-white tracking-wider">1234567890</p></div><div className="p-3 bg-black/40 border border-white/10 rounded-lg"><p className="text-[10px] uppercase tracking-widest text-gray-400 mb-1">SWIFT Code</p><p className="font-bold font-mono text-white tracking-wider">FNBKUS44XXX</p></div></div>) },
+  paypal: { title: 'PayPal', details: (<div className="space-y-4 text-center py-4"><div className="w-20 h-20 mx-auto bg-blue-500/10 border border-blue-500/20 rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(59,130,246,0.2)]"><Wallet className="w-8 h-8 text-blue-400" /></div><div><p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Send payment to</p><p className="font-medium text-white bg-white/5 py-2 rounded-lg">paypal@saasify.com</p></div></div>) },
+};
+>>>>>>> dca3aa3a3f873b44b14ac979061b48a773e7e8ae
 
 const exchangeRates: Record<string, number> = {
   USD: 1, GBP: 0.79, INR: 83.50, PKR: 278.00, BDT: 117.00, NPR: 133.00
@@ -38,11 +53,18 @@ export default function CheckoutPage() {
   const { user, isAuthenticated, login, token, currentCurrency } = useAuthStore() as any;
   const { toast } = useToast();
 
+<<<<<<< HEAD
   const [paymentMethod, setPaymentMethod] = useState<string>('upi');
   const [transactionId, setTransactionId] = useState('');
   const [screenshot, setScreenshot] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [copied, setCopied] = useState<string>('');
+=======
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('upi');
+  const [transactionId, setTransactionId] = useState('');
+  const [screenshot, setScreenshot] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+>>>>>>> dca3aa3a3f873b44b14ac979061b48a773e7e8ae
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [promoCode, setPromoCode] = useState('');
@@ -93,6 +115,7 @@ export default function CheckoutPage() {
   const finalPrice = appliedPromo ? Math.max(0, priceAfterBulk - appliedPromo.discount) : priceAfterBulk;
   
   const canPayWithWallet = localizedBalance >= finalPrice;
+<<<<<<< HEAD
   const selectedMethod = paymentMethods.find(m => m.id === paymentMethod);
 
   const handleCopy = (text: string, label: string) => { 
@@ -101,6 +124,8 @@ export default function CheckoutPage() {
     setTimeout(() => setCopied(''), 2000); 
     toast({ description: "Copied to clipboard", className: "bg-emerald-500 text-white border-none" });
   };
+=======
+>>>>>>> dca3aa3a3f873b44b14ac979061b48a773e7e8ae
 
   const handleApplyPromo = async () => {
     if (!promoCode.trim()) return;
@@ -126,7 +151,11 @@ export default function CheckoutPage() {
         quantity: quantity,
         price: finalPrice,  
         promoCode: appliedPromo?.code,
+<<<<<<< HEAD
         currency: currency
+=======
+        currency: currency // ✅ explicitly send the currency to the backend
+>>>>>>> dca3aa3a3f873b44b14ac979061b48a773e7e8ae
       });
 
       const usdDeduction = finalPrice / exchangeRate;
@@ -145,6 +174,7 @@ export default function CheckoutPage() {
   };
 
   const handleSubmitManual = async () => {
+<<<<<<< HEAD
     // Check if it's the auto crypto method
     if (selectedMethod?.isAuto) {
       setIsSubmitting(true);
@@ -171,6 +201,8 @@ export default function CheckoutPage() {
     }
 
     // Manual Upload logic
+=======
+>>>>>>> dca3aa3a3f873b44b14ac979061b48a773e7e8ae
     if (!transactionId.trim() || !screenshot) return toast({ title: 'Missing Info', variant: 'destructive' });
     setIsSubmitting(true);
     try {
@@ -179,7 +211,11 @@ export default function CheckoutPage() {
       formData.append('plan', selectedPlan);
       formData.append('quantity', quantity.toString());
       formData.append('price', finalPrice.toString());
+<<<<<<< HEAD
       formData.append('currency', currency);
+=======
+      formData.append('currency', currency); // ✅ explicitly send the currency to the backend
+>>>>>>> dca3aa3a3f873b44b14ac979061b48a773e7e8ae
       formData.append('paymentMethod', paymentMethod);
       formData.append('transactionId', transactionId);
       formData.append('paymentScreenshot', screenshot); 
@@ -371,11 +407,16 @@ export default function CheckoutPage() {
                   
                   <div className="space-y-3">
                     <Label className="text-xs text-gray-400 font-bold uppercase tracking-widest">Select Gateway</Label>
+<<<<<<< HEAD
                     <Select value={paymentMethod} onValueChange={(value: string) => setPaymentMethod(value)}>
+=======
+                    <Select value={paymentMethod} onValueChange={(value: PaymentMethod) => setPaymentMethod(value)}>
+>>>>>>> dca3aa3a3f873b44b14ac979061b48a773e7e8ae
                         <SelectTrigger className="h-12 bg-black/50 border-white/10 text-white rounded-xl focus:ring-purple-500/30 font-medium">
                             <SelectValue placeholder="Select method" />
                         </SelectTrigger>
                         <SelectContent className="bg-[#0f1219] border-white/10 text-white">
+<<<<<<< HEAD
                             {paymentMethods.map((method) => (
                                 <SelectItem key={method.id} value={method.id} className="focus:bg-purple-500/20">
                                     <div className="flex items-center gap-3">
@@ -384,10 +425,17 @@ export default function CheckoutPage() {
                                     </div>
                                 </SelectItem>
                             ))}
+=======
+                            <SelectItem value="upi" className="focus:bg-purple-500/20">UPI / PhonePe</SelectItem>
+                            <SelectItem value="crypto" className="focus:bg-purple-500/20">Crypto</SelectItem>
+                            <SelectItem value="bank_transfer" className="focus:bg-purple-500/20">Bank Transfer</SelectItem>
+                            <SelectItem value="paypal" className="focus:bg-purple-500/20">PayPal</SelectItem>
+>>>>>>> dca3aa3a3f873b44b14ac979061b48a773e7e8ae
                         </SelectContent>
                     </Select>
                   </div>
 
+<<<<<<< HEAD
                   {selectedMethod && (
                     <div className="p-6 bg-white/[0.02] border border-white/5 rounded-xl relative group overflow-hidden">
                         <div className="absolute inset-0 bg-gradient-to-br from-purple-500/[0.02] to-transparent pointer-events-none" />
@@ -475,6 +523,56 @@ export default function CheckoutPage() {
                     disabled={isSubmitting || (!selectedMethod?.isAuto && (!transactionId || !screenshot))}
                   >
                     {isSubmitting ? <><Loader2 className="animate-spin mr-2 h-5 w-5" /> Processing...</> : selectedMethod?.isAuto ? `Proceed to Secure Gateway` : `Submit ${formatDisplayPrice(finalPrice)} Payment Verification`}
+=======
+                  <div className="p-6 bg-white/[0.02] border border-white/5 rounded-xl relative group overflow-hidden">
+                      <div className="absolute inset-0 bg-gradient-to-br from-purple-500/[0.02] to-transparent pointer-events-none" />
+                      <div className="absolute top-4 right-4 cursor-pointer text-gray-500 hover:text-purple-400 transition-colors z-10 bg-black/50 p-2 rounded-lg backdrop-blur-sm" onClick={() => { navigator.clipboard.writeText("details"); toast({description: "Details copied"}) }}>
+                          <Copy className="h-4 w-4" />
+                      </div>
+                      <h4 className="font-bold text-white mb-6 relative z-10 flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-purple-500" />
+                          {paymentDetails[paymentMethod].title}
+                      </h4>
+                      <div className="relative z-10">
+                        {paymentDetails[paymentMethod].details}
+                      </div>
+                  </div>
+
+                  <div className="w-full h-px bg-white/[0.05]" />
+
+                  <div className="space-y-6">
+                    <div className="space-y-3">
+                        <Label htmlFor="transactionId" className="text-xs text-gray-400 font-bold uppercase tracking-widest">Transaction ID / Ref No <span className="text-red-500">*</span></Label>
+                        <Input id="transactionId" value={transactionId} onChange={(e) => setTransactionId(e.target.value)} className="h-12 bg-black/50 border-white/10 text-white focus-visible:ring-purple-500/30 rounded-xl font-mono placeholder:font-sans placeholder:text-gray-600" placeholder="Paste ID here..." />
+                    </div>
+                    
+                    <div className="space-y-3">
+                        <Label htmlFor="screenshot" className="text-xs text-gray-400 font-bold uppercase tracking-widest">Payment Screenshot <span className="text-red-500">*</span></Label>
+                        <div className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-300 ${screenshot ? 'border-purple-500/50 bg-purple-500/10' : 'border-white/10 hover:border-purple-500/30 bg-black/30 hover:bg-white/[0.02]'}`} onClick={() => fileInputRef.current?.click()}>
+                            <input type="file" hidden ref={fileInputRef} accept="image/*" onChange={handleFileUpload} />
+                            {screenshot ? (
+                                <div className="flex items-center justify-center gap-2 text-purple-400 font-bold">
+                                    <CheckCircle className="h-5 w-5" /> {screenshot.name}
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center gap-3 text-gray-500 group-hover:text-gray-300">
+                                    <div className="h-12 w-12 rounded-full bg-white/5 flex items-center justify-center">
+                                        <Upload className="h-5 w-5 text-gray-400" /> 
+                                    </div>
+                                    <span className="font-medium text-sm">Click to browse files</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                  </div>
+
+                  <Button 
+                    className="w-full h-14 text-base font-black bg-purple-600 hover:bg-purple-500 text-white shadow-[0_0_20px_rgba(168,85,247,0.3)] border-none rounded-xl transition-all disabled:opacity-50" 
+                    onClick={handleSubmitManual} 
+                    disabled={isSubmitting || !transactionId || !screenshot}
+                  >
+                    {isSubmitting ? <><Loader2 className="animate-spin mr-2 h-5 w-5" /> Submitting Data...</> : `Submit ${formatDisplayPrice(finalPrice)} Payment Verification`}
+>>>>>>> dca3aa3a3f873b44b14ac979061b48a773e7e8ae
                   </Button>
                 </CardContent>
               </Card>
